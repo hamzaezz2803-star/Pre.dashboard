@@ -1,0 +1,47 @@
+export interface Employee {
+  id: string;
+  nom: string;
+  prenom: string;
+  prestation: string;
+  departement: string;
+}
+
+/** Un pointage brut (une entrée ou une sortie, selon son rang dans la journée). */
+export interface Punch {
+  employeeId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  zone: string;
+}
+
+export interface AttendanceRow {
+  id: string;
+  nom: string;
+  prenom: string;
+  prestation: string;
+  /** "YYYY-MM-DDTHH:mm" ou null si aucun pointage sur la période */
+  firstPunch: string | null;
+  lastPunch: string | null;
+  punchCount: number;
+  zones: string[];
+  presenceMinutes: number;
+  absenceCount: number;
+  absenceDates: string[];
+}
+
+export interface AttendanceQuery {
+  from: string;
+  to: string;
+  /** undefined ou "all" : tous les départements */
+  department?: string;
+  /** Texte libre : identifiant, nom ou prénom */
+  query?: string;
+  /** Pour tester l'état d'erreur */
+  simulateError?: boolean;
+}
+
+export interface EmployeeSuggestion {
+  id: string;
+  nom: string;
+  prenom: string;
+}

@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f6f8f7;
+  --foreground: #14201b;
+  --surface: #ffffff;
+  --muted: #eaefec;
+  --muted-foreground: #55645d;
+  --border: #d5ddd9;
+  --primary: #0f6b4f;
+  --primary-hover: #0b5640;
+  --primary-foreground: #ffffff;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --warning-soft: #fff4e0;
+  --warning: #8a5a00;
+  --ring: #0f6b4f;
+}
+
+.dark {
+  --background: #0e1512;
+  --foreground: #e6ece9;
+  --surface: #151e1a;
+  --muted: #1e2924;
+  --muted-foreground: #9aaba3;
+  --border: #2a3832;
+  --primary: #3fb68b;
+  --primary-hover: #5cc9a1;
+  --primary-foreground: #08130e;
+  --danger: #f08a80;
+  --danger-soft: #3a1b18;
+  --warning-soft: #33280f;
+  --warning: #f0c36b;
+  --ring: #3fb68b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
