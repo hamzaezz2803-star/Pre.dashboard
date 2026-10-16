@@ -26,19 +26,6 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         </div>
       </header>
       <div className="flex-1">{children}</div>
-      <footer className="border-t border-border bg-surface">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>Suivi des pointages du personnel</p>
-          <nav aria-label="Liens légaux" className="flex gap-4">
-            <Link href="/conditions" className="underline-offset-4 hover:text-foreground hover:underline">
-              Conditions d&apos;utilisation
-            </Link>
-            <Link href="/confidentialite" className="underline-offset-4 hover:text-foreground hover:underline">
-              Politique de confidentialité
-            </Link>
-          </nav>
-        </div>
-      </footer>
     </>
   );
 }

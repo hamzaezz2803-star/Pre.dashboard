@@ -8,6 +8,7 @@ import { EmployeeSearch } from "@/components/employee-search";
 import { SummaryCards, SummaryCardsSkeleton } from "@/components/summary-cards";
 import { Button } from "@/components/ui/button";
 import { Card, fieldClass } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { getDepartments } from "@/lib/attendance-service";
 import { currentMonthRange, isValidISODate } from "@/lib/dates";
 import type { AttendanceRow } from "@/lib/types";
@@ -271,15 +272,13 @@ export function Dashboard() {
             <label htmlFor="filter-from" className="text-sm font-medium">
               Date de début
             </label>
-            <input
+            <DatePicker
               id="filter-from"
-              type="date"
-              className={fieldClass}
               value={from}
               max={to}
               aria-invalid={rangeError}
               aria-describedby={rangeError ? "range-error" : undefined}
-              onChange={(e) => updateParams({ from: e.target.value || null })}
+              onChange={(val) => updateParams({ from: val || null })}
             />
           </div>
 
@@ -287,14 +286,13 @@ export function Dashboard() {
             <label htmlFor="filter-to" className="text-sm font-medium">
               Date de fin
             </label>
-            <input
+            <DatePicker
               id="filter-to"
-              type="date"
-              className={fieldClass}
               value={to}
+              min={from}
               aria-invalid={rangeError}
               aria-describedby={rangeError ? "range-error" : undefined}
-              onChange={(e) => updateParams({ to: e.target.value || null })}
+              onChange={(val) => updateParams({ to: val || null })}
             />
           </div>
         </form>
