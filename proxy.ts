@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "ocp_session";
-const PUBLIC_PATHS = ["/login", "/conditions", "/confidentialite"];
+const PUBLIC_PATHS = ["/login", "/conditions", "/confidentialite", "/api"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

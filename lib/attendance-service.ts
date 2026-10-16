@@ -9,7 +9,6 @@
 
 import { listWorkdays, minutesBetween } from "./dates";
 import {
-  DEPARTMENTS,
   EMPLOYEES,
   getMockAbsences,
   getMockPunches,
@@ -34,21 +33,33 @@ const normalize = (s: string): string =>
     .trim();
 
 export async function getDepartments(): Promise<string[]> {
-  await wait(120);
-  return [...DEPARTMENTS];
+  try {
+    const res = await fetch("/api/departements");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch {
+    // Échec de requête ignoré
+  }
+  return [];
 }
 
 export async function searchEmployees(
   query: string,
 ): Promise<EmployeeSuggestion[]> {
-  await wait(120);
-  const q = normalize(query);
+  const q = query.trim();
   if (q.length < 1) return [];
-  return EMPLOYEES.filter((e) =>
-    normalize(`${e.id} ${e.nom} ${e.prenom} ${e.prenom} ${e.nom}`).includes(q),
-  )
-    .slice(0, 8)
-    .map(({ id, nom, prenom }) => ({ id, nom, prenom }));
+  try {
+    const res = await fetch(`/api/personnel?q=${encodeURIComponent(q)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch {
+    // Échec de requête ignoré
+  }
+  return [];
 }
 
 export async function getAttendance(

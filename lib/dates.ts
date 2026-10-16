@@ -48,17 +48,41 @@ export function formatDateFr(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-/** "2026-10-15T08:02" -> "15/10/2026 08:02" */
-export function formatDateTimeFr(dt: string): string {
-  const [date, time] = dt.split("T");
-  return `${formatDateFr(date)} ${time}`;
+/** "2026-10-15T08:02:15.000Z" -> "15/10/2026 08:02" */
+export function formatDateTimeFr(dt: string | Date): string {
+  if (!dt) return "Aucun";
+  const d = typeof dt === "string" ? new Date(dt) : dt;
+  if (isNaN(d.getTime())) {
+    const parts = String(dt).split("T");
+    if (parts.length === 2) {
+      return `${formatDateFr(parts[0])} ${parts[1].slice(0, 5)}`;
+    }
+    return String(dt);
+  }
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
-/** 425 -> "7h 05min" */
+/** Formate l'heure seule au format HH:mm */
+export function formatTimeFr(dt: string | Date): string {
+  if (!dt) return "Aucun";
+  const d = typeof dt === "string" ? new Date(dt) : dt;
+  if (isNaN(d.getTime())) return "";
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${hours}:${minutes}`;
+}
+
+/** 455 -> "7h35" */
 export function formatDuration(totalMinutes: number): string {
+  if (!totalMinutes || isNaN(totalMinutes)) return "0h00";
   const h = Math.floor(totalMinutes / 60);
   const m = Math.round(totalMinutes % 60);
-  return `${h}h ${pad(m)}min`;
+  return `${h}h${pad(m)}`;
 }
 
 export function minutesBetween(startTime: string, endTime: string): number {

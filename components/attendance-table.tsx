@@ -16,9 +16,9 @@ import {
   CalendarX,
   ChevronLeft,
   ChevronRight,
-  Download,
   FileSpreadsheet,
   FileText,
+  RefreshCw,
 } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -128,14 +128,19 @@ export function AttendanceTable({
   rows,
   from,
   to,
+  onRefresh,
+  isRefreshing = false,
+  refreshError = null,
 }: {
   rows: AttendanceRow[];
   from: string;
   to: string;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  refreshError?: string | null;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [exporting, setExporting] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const data = useMemo(() => rows, [rows]);
 
   const table = useReactTable({
@@ -150,7 +155,6 @@ export function AttendanceTable({
   });
 
   async function handleExport(format: "excel" | "pdf") {
-    setMenuOpen(false);
     setExporting(true);
     try {
       const sorted = table.getSortedRowModel().rows.map((r) => r.original);
@@ -169,51 +173,46 @@ export function AttendanceTable({
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-3">
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          {total} {total > 1 ? "lignes" : "ligne"}
-        </p>
-        <div
-          className="relative"
-          onBlur={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget)) setMenuOpen(false);
-          }}
-          onKeyDown={(e) => e.key === "Escape" && setMenuOpen(false)}
-        >
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {total} {total > 1 ? "lignes" : "ligne"}
+          </p>
+          {refreshError && (
+            <span role="alert" className="text-xs text-danger font-medium">
+              {refreshError}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {onRefresh && (
+            <Button
+              variant="outline"
+              onClick={onRefresh}
+              disabled={isRefreshing || exporting}
+              aria-label="Actualiser les pointages"
+            >
+              <RefreshCw className={cn("size-4 text-primary", isRefreshing && "animate-spin")} aria-hidden="true" />
+              <span>{isRefreshing ? "Mise à jour…" : "Actualiser"}</span>
+            </Button>
+          )}
           <Button
             variant="outline"
-            onClick={() => setMenuOpen((o) => !o)}
-            disabled={exporting || total === 0}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
+            onClick={() => handleExport("excel")}
+            disabled={exporting || isRefreshing || total === 0}
+            aria-label="Exporter vers Excel (.xlsx)"
           >
-            <Download className="size-4" aria-hidden="true" />
-            {exporting ? "Export en cours" : "Exporter"}
+            <FileSpreadsheet className="size-4 text-emerald-600" aria-hidden="true" />
+            <span>Excel (.xlsx)</span>
           </Button>
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 z-30 mt-1 w-48 rounded-md border border-border bg-surface p-1 shadow-md"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleExport("excel")}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
-              >
-                <FileSpreadsheet className="size-4" aria-hidden="true" />
-                Excel (.xlsx)
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleExport("pdf")}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
-              >
-                <FileText className="size-4" aria-hidden="true" />
-                PDF (.pdf)
-              </button>
-            </div>
-          )}
+          <Button
+            variant="outline"
+            onClick={() => handleExport("pdf")}
+            disabled={exporting || isRefreshing || total === 0}
+            aria-label="Exporter vers PDF (.pdf)"
+          >
+            <FileText className="size-4 text-red-600" aria-hidden="true" />
+            <span>PDF (.pdf)</span>
+          </Button>
         </div>
       </div>
 
