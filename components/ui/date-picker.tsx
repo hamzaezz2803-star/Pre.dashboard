@@ -58,14 +58,15 @@ export function DatePicker({
   const [viewYear, setViewYear] = useState<number>(initialDate.getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(initialDate.getMonth());
 
-  // Resynchroniser le mois visible quand la valeur change depuis l'extérieur
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
     if (isValidISODate(value)) {
       const d = parseISODate(value);
       setViewYear(d.getFullYear());
       setViewMonth(d.getMonth());
     }
-  }, [value]);
+  }
 
   // Fermer le popover au clic à l'extérieur ou touche Escape
   useEffect(() => {
@@ -205,7 +206,6 @@ export function DatePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
-        aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
