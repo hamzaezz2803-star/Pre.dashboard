@@ -2,6 +2,15 @@ import { Suspense } from "react";
 import { AttendanceTableSkeleton } from "@/components/attendance-table";
 import { Dashboard } from "@/components/dashboard";
 import { SummaryCardsSkeleton } from "@/components/summary-cards";
+import { lireSession } from "@/lib/auth";
+
+export const instant = false;
+
+async function UserDashboard() {
+  const session = await lireSession();
+  const userRole = session?.role ?? "admin";
+  return <Dashboard userRole={userRole} />;
+}
 
 export default function Home() {
   return (
@@ -14,7 +23,7 @@ export default function Home() {
         </main>
       }
     >
-      <Dashboard />
+      <UserDashboard />
     </Suspense>
   );
 }

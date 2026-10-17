@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { targetPool } from '@/lib/db';
 import { runSync, syncState } from '@/lib/sync';
+import { exigerRole } from '@/lib/auth';
 
 /**
  * Seuil en minutes avant déclenchement d'une nouvelle synchronisation automatique (défaut : 1).
@@ -9,6 +10,11 @@ const SEUIL_SYNC_MIN = 1;
 const SYNC_INTERVAL_MS = SEUIL_SYNC_MIN * 60 * 1000;
 
 export async function GET(request) {
+  // Contrôle d'accès : réservé aux rôles admin et super_admin
+  const auth = await exigerRole('admin', 'super_admin');
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
   try {
     // 1. Tenter une synchronisation si nécessaire (sans bloquer la lecture si la source est indisponible)
     const isSyncNeeded =

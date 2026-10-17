@@ -52,7 +52,7 @@ function formatSyncedAt(dateStr: string | null | undefined): string {
   return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
-export function Dashboard() {
+export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -345,7 +345,7 @@ export function Dashboard() {
             rows={state.rows}
             from={from}
             to={to}
-            onRefresh={handleRefresh}
+            onRefresh={userRole === "super_admin" ? handleRefresh : undefined}
             isRefreshing={isRefreshing}
             refreshError={refreshError}
           />

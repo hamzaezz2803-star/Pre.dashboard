@@ -1,0 +1,756 @@
+"use client";
+
+import {
+  AlertCircle,
+  Check,
+  Edit2,
+  KeyRound,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, fieldClass } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+
+interface User {
+  id: number;
+  username: string;
+  full_name: string | null;
+  role: "super_admin" | "admin";
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CurrentUser {
+  id?: number;
+  username: string;
+  full_name: string | null;
+  role: string;
+}
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Modales
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalUser, setEditModalUser] = useState<User | null>(null);
+  const [resetPwdUser, setResetPwdUser] = useState<User | null>(null);
+  const [deleteModalUser, setDeleteModalUser] = useState<User | null>(null);
+
+  // Formulaires
+  const [createForm, setCreateForm] = useState({
+    username: "",
+    full_name: "",
+    role: "admin" as "admin" | "super_admin",
+    password: "",
+  });
+  const [editForm, setEditForm] = useState({
+    full_name: "",
+    role: "admin" as "admin" | "super_admin",
+    active: true,
+  });
+  const [newPassword, setNewPassword] = useState("");
+  const [actionPending, setActionPending] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  async function loadUsers() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/users");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Impossible de charger la liste des utilisateurs.");
+      }
+      const data = await res.json();
+      setUsers(data);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erreur de chargement.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function init() {
+      try {
+        const res = await fetch("/api/admin/users");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Impossible de charger la liste des utilisateurs.");
+        }
+        const data = await res.json();
+        if (!cancelled) setUsers(data);
+      } catch (err: unknown) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Erreur de chargement.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function showSuccess(msg: string) {
+    setSuccessMessage(msg);
+    setTimeout(() => setSuccessMessage(null), 4000);
+  }
+
+  // Création
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setActionPending(true);
+    setModalError(null);
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || "Échec de la création de l'utilisateur.");
+      }
+
+      setCreateModalOpen(false);
+      setCreateForm({ username: "", full_name: "", role: "admin", password: "" });
+      showSuccess(`L'utilisateur "${data.username}" a été créé avec succès.`);
+      await loadUsers();
+    } catch (err: unknown) {
+      setModalError(err instanceof Error ? err.message : "Erreur inattendue.");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  // Modification
+  function openEditModal(user: User) {
+    setEditModalUser(user);
+    setEditForm({
+      full_name: user.full_name || "",
+      role: user.role,
+      active: user.active,
+    });
+    setModalError(null);
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editModalUser) return;
+    setActionPending(true);
+    setModalError(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${editModalUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || "Échec de la mise à jour.");
+      }
+
+      setEditModalUser(null);
+      showSuccess(`L'utilisateur "${data.username}" a été mis à jour.`);
+      await loadUsers();
+    } catch (err: unknown) {
+      setModalError(err instanceof Error ? err.message : "Erreur inattendue.");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  // Réinitialisation mot de passe
+  function openResetPwdModal(user: User) {
+    setResetPwdUser(user);
+    setNewPassword("");
+    setModalError(null);
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetPwdUser) return;
+    setActionPending(true);
+    setModalError(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${resetPwdUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || "Échec de la réinitialisation.");
+      }
+
+      setResetPwdUser(null);
+      setNewPassword("");
+      showSuccess(`Le mot de passe de "${resetPwdUser.username}" a été réinitialisé.`);
+    } catch (err: unknown) {
+      setModalError(err instanceof Error ? err.message : "Erreur inattendue.");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  // Suppression
+  function openDeleteModal(user: User) {
+    setDeleteModalUser(user);
+    setModalError(null);
+  }
+
+  async function handleDelete() {
+    if (!deleteModalUser) return;
+    setActionPending(true);
+    setModalError(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${deleteModalUser.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || "Échec de la suppression.");
+      }
+
+      showSuccess(`L'utilisateur "${deleteModalUser.username}" a été supprimé.`);
+      setDeleteModalUser(null);
+      await loadUsers();
+    } catch (err: unknown) {
+      setModalError(err instanceof Error ? err.message : "Erreur inattendue.");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+      {/* En-tête */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Gestion des comptes</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Gérez les accès utilisateurs, leurs rôles et leurs identifiants.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={loadUsers} disabled={loading} aria-label="Rafraîchir la liste">
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} aria-hidden="true" />
+            <span className="hidden sm:inline">Actualiser</span>
+          </Button>
+          <Button
+            onClick={() => {
+              setModalError(null);
+              setCreateForm({ username: "", full_name: "", role: "admin", password: "" });
+              setCreateModalOpen(true);
+            }}
+          >
+            <UserPlus className="size-4" aria-hidden="true" />
+            <span>Créer un utilisateur</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Message de succès */}
+      {successMessage && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400"
+        >
+          <Check className="size-4 shrink-0" aria-hidden="true" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Message d'erreur global */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-md border border-danger/20 bg-danger/10 p-3 text-sm text-danger"
+        >
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Tableau des utilisateurs */}
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+            <thead className="bg-muted text-xs text-muted-foreground border-b border-border">
+              <tr>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Identifiant
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Nom complet
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Rôle
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Statut
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Date de création
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium text-right">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loading && users.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    <Loader2 className="size-5 animate-spin mx-auto mb-2 text-primary" aria-hidden="true" />
+                    Chargement des utilisateurs…
+                  </td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    Aucun utilisateur trouvé.
+                  </td>
+                </tr>
+              ) : (
+                users.map((u) => {
+                  const isCurrent = currentUser?.username === u.username;
+                  return (
+                    <tr key={u.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-3 font-medium">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{u.username}</span>
+                          {isCurrent && (
+                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                              Vous
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{u.full_name || "-"}</td>
+                      <td className="px-4 py-3">
+                        {u.role === "super_admin" ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                            <ShieldCheck className="size-3.5" aria-hidden="true" />
+                            Super Admin
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
+                            <UserCheck className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                            Admin
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {u.active ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                            Actif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
+                            <span className="size-1.5 rounded-full bg-danger" aria-hidden="true" />
+                            Inactif
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums">
+                        {formatDate(u.created_at)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            className="size-8 p-0"
+                            title="Modifier"
+                            onClick={() => openEditModal(u)}
+                            aria-label={`Modifier l'utilisateur ${u.username}`}
+                          >
+                            <Edit2 className="size-4" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="size-8 p-0"
+                            title="Réinitialiser le mot de passe"
+                            onClick={() => openResetPwdModal(u)}
+                            aria-label={`Réinitialiser le mot de passe de ${u.username}`}
+                          >
+                            <KeyRound className="size-4" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="size-8 p-0 text-danger hover:bg-danger/10 hover:text-danger"
+                            title="Supprimer"
+                            disabled={isCurrent}
+                            onClick={() => openDeleteModal(u)}
+                            aria-label={`Supprimer l'utilisateur ${u.username}`}
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Modal Créer */}
+      {createModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+                <UserPlus className="size-5 text-primary" aria-hidden="true" />
+                Créer un utilisateur
+              </h2>
+              <button
+                type="button"
+                onClick={() => setCreateModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Fermer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {modalError && (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-md border border-danger/20 bg-danger/10 p-2.5 text-xs text-danger"
+              >
+                <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-1">
+                <label htmlFor="create-username" className="text-xs font-medium">
+                  Identifiant *
+                </label>
+                <input
+                  id="create-username"
+                  required
+                  autoFocus
+                  value={createForm.username}
+                  onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
+                  placeholder="ex: jdupont"
+                  className={fieldClass}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="create-fullname" className="text-xs font-medium">
+                  Nom complet
+                </label>
+                <input
+                  id="create-fullname"
+                  value={createForm.full_name}
+                  onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+                  placeholder="ex: Jean Dupont"
+                  className={fieldClass}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="create-role" className="text-xs font-medium">
+                  Rôle *
+                </label>
+                <select
+                  id="create-role"
+                  value={createForm.role}
+                  onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as "admin" | "super_admin" })}
+                  className={fieldClass}
+                >
+                  <option value="admin">Administrateur (Consultation, filtres, exports)</option>
+                  <option value="super_admin">Super Administrateur (Tous les droits)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="create-password" className="text-xs font-medium">
+                  Mot de passe provisoire * (min. 6 caractères)
+                </label>
+                <input
+                  id="create-password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                  placeholder="••••••••"
+                  className={fieldClass}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <Button variant="outline" type="button" onClick={() => setCreateModalOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={actionPending}>
+                  {actionPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  Créer
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Modifier */}
+      {editModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+                <Edit2 className="size-5 text-primary" aria-hidden="true" />
+                Modifier l&apos;utilisateur ({editModalUser.username})
+              </h2>
+              <button
+                type="button"
+                onClick={() => setEditModalUser(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Fermer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {modalError && (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-md border border-danger/20 bg-danger/10 p-2.5 text-xs text-danger"
+              >
+                <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEdit} className="space-y-4">
+              <div className="space-y-1">
+                <label htmlFor="edit-fullname" className="text-xs font-medium">
+                  Nom complet
+                </label>
+                <input
+                  id="edit-fullname"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                  placeholder="ex: Jean Dupont"
+                  className={fieldClass}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="edit-role" className="text-xs font-medium">
+                  Rôle
+                </label>
+                <select
+                  id="edit-role"
+                  value={editForm.role}
+                  disabled={currentUser?.username === editModalUser.username}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "admin" | "super_admin" })}
+                  className={fieldClass}
+                >
+                  <option value="admin">Administrateur</option>
+                  <option value="super_admin">Super Administrateur</option>
+                </select>
+                {currentUser?.username === editModalUser.username && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Vous ne pouvez pas modifier votre propre rôle.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  id="edit-active"
+                  type="checkbox"
+                  checked={editForm.active}
+                  disabled={currentUser?.username === editModalUser.username}
+                  onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
+                  className="size-4 rounded border-border text-primary focus:ring-primary"
+                />
+                <label htmlFor="edit-active" className="text-sm font-medium cursor-pointer">
+                  Compte actif
+                </label>
+              </div>
+              {currentUser?.username === editModalUser.username && (
+                <p className="text-[11px] text-muted-foreground">
+                  Vous ne pouvez pas désactiver votre propre compte.
+                </p>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <Button variant="outline" type="button" onClick={() => setEditModalUser(null)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={actionPending}>
+                  {actionPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  Enregistrer
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Réinitialiser mot de passe */}
+      {resetPwdUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+                <KeyRound className="size-5 text-primary" aria-hidden="true" />
+                Réinitialiser le mot de passe
+              </h2>
+              <button
+                type="button"
+                onClick={() => setResetPwdUser(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Fermer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Définissez un nouveau mot de passe pour l&apos;utilisateur{" "}
+              <strong className="text-foreground">{resetPwdUser.username}</strong>.
+            </p>
+
+            {modalError && (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-md border border-danger/20 bg-danger/10 p-2.5 text-xs text-danger"
+              >
+                <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-1">
+                <label htmlFor="reset-password" className="text-xs font-medium">
+                  Nouveau mot de passe * (min. 6 caractères)
+                </label>
+                <input
+                  id="reset-password"
+                  type="password"
+                  required
+                  autoFocus
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={fieldClass}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <Button variant="outline" type="button" onClick={() => setResetPwdUser(null)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={actionPending || newPassword.length < 6}>
+                  {actionPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  Mettre à jour
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Supprimer avec confirmation */}
+      {deleteModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2 text-danger">
+                <Trash2 className="size-5" aria-hidden="true" />
+                Confirmation de suppression
+              </h2>
+              <button
+                type="button"
+                onClick={() => setDeleteModalUser(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Fermer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-foreground">
+              Êtes-vous sûr de vouloir supprimer définitivement l&apos;utilisateur{" "}
+              <strong className="font-mono text-danger">{deleteModalUser.username}</strong> ?
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Cette action est irréversible. L&apos;utilisateur ne pourra plus se connecter au tableau de bord.
+            </p>
+
+            {modalError && (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-md border border-danger/20 bg-danger/10 p-2.5 text-xs text-danger"
+              >
+                <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button variant="outline" type="button" onClick={() => setDeleteModalUser(null)}>
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                className="bg-danger text-white hover:bg-danger/90"
+                onClick={handleDelete}
+                disabled={actionPending}
+              >
+                {actionPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                Confirmer la suppression
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

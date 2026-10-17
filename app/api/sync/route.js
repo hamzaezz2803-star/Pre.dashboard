@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import { isSyncInProgress, runSync, syncState } from '@/lib/sync';
+import { exigerRole } from '@/lib/auth';
 
 /**
  * Route POST /api/sync
  * Déclenche manuellement la synchronisation de la source vers la cible.
+ * - Réservée au rôle super_admin uniquement.
  * - Restreinte aux requêtes locales (localhost).
  * - Empêche les exécutions concurrentes en renvoyant 202 si déjà en cours.
  */
 export async function POST(request) {
-  // 1. Vérification que l'appel provient de localhost
+  // 1. Contrôle d'accès : rôle super_admin obligatoire
+  const auth = await exigerRole('super_admin');
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  // 2. Vérification que l'appel provient de localhost
   const host = request.headers.get('host') || '';
   const forwardedFor = request.headers.get('x-forwarded-for') || '';
   const hostname = request.nextUrl.hostname;

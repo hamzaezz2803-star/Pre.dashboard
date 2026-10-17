@@ -18,9 +18,13 @@ Tout passe par [`lib/attendance-service.ts`](lib/attendance-service.ts). Remplac
 
 Le fichier `lib/mock-data.ts` ne sert qu'aux données fictives et peut être supprimé ensuite. Le calcul du temps de présence (paires entrée/sortie) et des absences (jours ouvrés sans pointage) se trouve dans `getAttendance` : à conserver côté service ou à déplacer en SQL.
 
-## Connexion (statique)
+## Authentification et Rôles
 
-La page `/login` utilise un compte fixe de démonstration : `admin` / `admin123` (voir `lib/auth.ts` et `app/actions/auth.ts`). La protection des pages est faite par `proxy.ts` via un cookie. À remplacer par une vraie authentification avant la mise en production.
+L'application utilise une authentification basée sur PostgreSQL (table `users`), JWT (via `jose`, signé avec `AUTH_SECRET`) et mots de passe sécurisés par `bcryptjs` (12 tours).
+
+- **super_admin** : Accès complet (pointages, filtres, exports, bouton Actualiser et gestion des utilisateurs sur `/admin/utilisateurs`).
+- **admin** : Consultation des pointages, filtres et exports (Excel & PDF). Bouton Actualiser et lien Utilisateurs masqués.
+- Protection stricte côté serveur avec `middleware.js` et vérification des rôles sur chaque route API (`exigerRole`).
 
 ## Points à compléter
 
