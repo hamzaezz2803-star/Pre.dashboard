@@ -30,8 +30,15 @@ export default function LoginPage() {
           className="pointer-events-none absolute -bottom-40 -left-24 size-[28rem] rounded-full border border-white/10"
         />
         <div className="relative flex items-center gap-4">
-          <span className="flex size-16 items-center justify-center rounded-lg bg-white p-2">
-            <Image src="/assets/ocpLogo.webp" alt="Logo OCP" width={467} height={428} priority className="h-full w-auto" />
+          <span className="flex size-16 items-center justify-center overflow-hidden rounded-lg bg-white p-1.5 shadow-sm">
+            <Image
+              src="/assets/logo-ocp-phosboucraa.png"
+              alt="Logo OCP Phosboucraâ"
+              width={1283}
+              height={1226}
+              priority
+              className="h-full w-auto object-contain"
+            />
           </span>
           <span className="text-lg font-semibold tracking-tight">Suivi des pointages</span>
         </div>
@@ -65,7 +72,16 @@ export default function LoginPage() {
 
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <Image src="/assets/ocpLogo.webp" alt="Logo OCP" width={467} height={428} priority className="h-12 w-auto" />
+            <span className="flex size-12 items-center justify-center overflow-hidden rounded-lg bg-white p-1 shadow-xs border border-border">
+              <Image
+                src="/assets/logo-ocp-phosboucraa.png"
+                alt="Logo OCP Phosboucraâ"
+                width={1283}
+                height={1226}
+                priority
+                className="h-full w-auto object-contain"
+              />
+            </span>
             <span className="font-semibold">Suivi des pointages</span>
           </div>
 

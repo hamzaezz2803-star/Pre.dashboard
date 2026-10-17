@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "Suivi des pointages du personnel",
   description:
     "Tableau de bord de consultation des pointages, temps de présence et absences du personnel, avec export Excel.",
-  icons: { icon: "/assets/ocpLogo.webp", apple: "/assets/ocpLogo.webp" },
+  icons: { icon: "/assets/logo-ocp-phosboucraa.png", apple: "/assets/logo-ocp-phosboucraa.png" },
 };
 
 const themeScript = `try{var t=localStorage.getItem("theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`;

@@ -21,14 +21,14 @@ async function HeaderContent() {
   return (
     <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
       <div className="flex items-center gap-4 sm:gap-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
+        <Link href="/" className="flex items-center gap-2.5 font-semibold">
           <Image
-            src="/assets/ocpLogo.webp"
-            alt="Logo OCP"
-            width={467}
-            height={428}
+            src="/assets/logo-ocp-phosboucraa.png"
+            alt="Logo OCP Phosboucraâ"
+            width={1283}
+            height={1226}
             priority
-            className="h-9 w-auto"
+            className="h-10 w-auto rounded-md object-contain"
           />
           <span className="hidden sm:inline">Suivi des pointages</span>
         </Link>
@@ -86,14 +86,14 @@ async function HeaderContent() {
 function HeaderFallback() {
   return (
     <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
-      <div className="flex items-center gap-2 font-semibold">
+      <div className="flex items-center gap-2.5 font-semibold">
         <Image
-          src="/assets/ocpLogo.webp"
-          alt="Logo OCP"
-          width={467}
-          height={428}
+          src="/assets/logo-ocp-phosboucraa.png"
+          alt="Logo OCP Phosboucraâ"
+          width={1283}
+          height={1226}
           priority
-          className="h-9 w-auto"
+          className="h-10 w-auto rounded-md object-contain"
         />
         <span className="hidden sm:inline">Suivi des pointages</span>
       </div>

@@ -2,7 +2,7 @@
 export async function loadLogoPng(): Promise<{ dataUrl: string; width: number; height: number } | null> {
   try {
     const img = new Image();
-    img.src = "/assets/ocpLogo.webp";
+    img.src = "/assets/logo-ocp-phosboucraa.png";
     await img.decode();
     const canvas = document.createElement("canvas");
     canvas.width = img.naturalWidth;
