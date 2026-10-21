@@ -25,12 +25,24 @@ import { Card, Skeleton } from "@/components/ui/card";
 import { exportAttendanceToExcel } from "@/lib/export-excel";
 import { exportAttendanceToPdf } from "@/lib/export-pdf";
 import { formatDateFr, formatDurationLong } from "@/lib/dates";
+import { formatStatut, getStatutTon, type StatutTon } from "@/lib/status";
 import type { PresenceRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
 const dash = <span className="text-muted-foreground">-</span>;
+
+const TON_STYLES: Record<StatutTon, { text: string; dot: string; legend: string }> = {
+  present: { text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-600 dark:bg-emerald-500", legend: "Présent" },
+  anomalie: {
+    text: "text-amber-700 dark:text-amber-400",
+    dot: "bg-amber-500",
+    legend: "Anomalie (retard, entrée ou sortie manquante)",
+  },
+  absent: { text: "text-red-700 dark:text-red-400", dot: "bg-red-600 dark:bg-red-500", legend: "Absent" },
+  "sans-horaire": { text: "text-slate-500 dark:text-slate-400", dot: "bg-slate-400 dark:bg-slate-500", legend: "Pas d'horaire" },
+};
 
 const columns: ColumnDef<PresenceRow>[] = [
   {
@@ -80,7 +92,18 @@ const columns: ColumnDef<PresenceRow>[] = [
   {
     accessorKey: "statutPresence",
     header: "Statut",
-    cell: (c) => c.getValue<string>() || dash,
+    cell: (c) => {
+      const statut = c.getValue<string | null>();
+      const label = formatStatut(statut, c.row.original.nbPointages);
+      if (label === "-") return dash;
+      const style = TON_STYLES[getStatutTon(statut)];
+      return (
+        <span className={cn("inline-flex items-center gap-2", style.text)}>
+          <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", style.dot)} />
+          {label}
+        </span>
+      );
+    },
   },
 ];
 
@@ -223,6 +246,18 @@ export function AttendanceTable({
           </tbody>
         </table>
       </div>
+
+      <ul
+        aria-label="Légende des statuts"
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-3 py-2 text-xs"
+      >
+        {(Object.keys(TON_STYLES) as StatutTon[]).map((ton) => (
+          <li key={ton} className={cn("inline-flex items-center gap-1.5", TON_STYLES[ton].text)}>
+            <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", TON_STYLES[ton].dot)} />
+            {TON_STYLES[ton].legend}
+          </li>
+        ))}
+      </ul>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3 text-sm">
         <p className="text-muted-foreground">

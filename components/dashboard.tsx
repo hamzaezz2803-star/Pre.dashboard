@@ -10,7 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Card, fieldClass } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { currentMonthRange, isValidISODate } from "@/lib/dates";
+import { formatStatut, getStatutTon, type StatutTon } from "@/lib/status";
 import type { PresenceRow } from "@/lib/types";
+
+const STATUT_OPTIONS: { value: StatutTon; label: string }[] = [
+  { value: "present", label: "Présent" },
+  { value: "anomalie", label: "Anomalie" },
+  { value: "absent", label: "Absent" },
+  { value: "sans-horaire", label: "Pas d'horaire" },
+];
 
 type DataState =
   | { status: "loading" }
@@ -48,6 +56,10 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
   const to = isValidISODate(rawTo) ? rawTo : defaults.to;
   const department = params.get("dept") ?? "all";
   const query = params.get("q") ?? "";
+  const rawStatut = params.get("statut");
+  const statutFilter: StatutTon | "all" = STATUT_OPTIONS.some((o) => o.value === rawStatut)
+    ? (rawStatut as StatutTon)
+    : "all";
   const rangeError = from > to;
 
   const [departments, setDepartments] = useState<string[]>([]);
@@ -165,6 +177,15 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
     };
   }, [from, to, department, query, rangeError, retryKey]);
 
+  /** Filtre par catégorie de statut, côté client (la vue et les requêtes restent inchangées). */
+  const filteredRows = (rows: PresenceRow[]) =>
+    statutFilter === "all"
+      ? rows
+      : rows.filter(
+          (r) =>
+            formatStatut(r.statutPresence, r.nbPointages) !== "-" && getStatutTon(r.statutPresence) === statutFilter,
+        );
+
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
       <div>
@@ -176,7 +197,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
 
       <Card className="p-4">
         <form
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
           onSubmit={(e) => e.preventDefault()}
           aria-label="Filtres"
         >
@@ -194,6 +215,25 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
               {departments.map((d) => (
                 <option key={d} value={d}>
                   {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="filter-statut" className="text-sm font-medium">
+              Statut
+            </label>
+            <select
+              id="filter-statut"
+              className={fieldClass}
+              value={statutFilter}
+              onChange={(e) => updateParams({ statut: e.target.value === "all" ? null : e.target.value })}
+            >
+              <option value="all">Tous</option>
+              {STATUT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>
@@ -270,7 +310,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
             <p className="font-medium">Aucun résultat</p>
             <p className="text-sm text-muted-foreground">Aucune donnée ne correspond à ces filtres.</p>
           </div>
-          <Button variant="outline" onClick={() => updateParams({ dept: null, q: null, from: null, to: null })}>
+          <Button variant="outline" onClick={() => updateParams({ dept: null, q: null, from: null, to: null, statut: null })}>
             Réinitialiser les filtres
           </Button>
         </Card>
@@ -278,7 +318,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
         <>
           <SummaryCards rows={state.rows} />
           <AttendanceTable
-            rows={state.rows}
+            rows={filteredRows(state.rows)}
             from={from}
             to={to}
             onRefresh={userRole === "super_admin" ? handleRefresh : undefined}

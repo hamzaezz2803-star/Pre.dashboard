@@ -1,6 +1,7 @@
 import type { PresenceRow } from "./types";
 import { formatDateFr, formatDurationLong } from "./dates";
 import { downloadBlob, loadLogoPng } from "./export-utils";
+import { formatStatut } from "./status";
 
 const GREEN = "FF0F6B4F";
 const GREEN_SOFT = "FFE8F3EE";
@@ -83,7 +84,7 @@ export async function exportAttendanceToExcel(
       r.dernierPointage || "-",
       r.nbPointages,
       formatDurationLong(r.tempsPresenceMin),
-      r.statutPresence,
+      formatStatut(r.statutPresence, r.nbPointages),
     ];
     values.forEach((v, i) => {
       const cell = row.getCell(i + 1);
