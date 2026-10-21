@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { targetPool } from '@/lib/db';
 import { runSync, syncState } from '@/lib/sync';
 import { exigerRole } from '@/lib/auth';
+import { getEventTimesByEmployee } from '@/lib/queries';
 
 /**
  * Seuil en minutes avant déclenchement d'une nouvelle synchronisation automatique (défaut : 1).
@@ -89,6 +90,20 @@ export async function GET(request) {
     `;
 
     const { rows } = await targetPool.query(query, params);
+
+    // Horaire de pointage (vue v_pointages) : lecture séparée, sans effet sur présence/absences
+    let horaires = new Map();
+    try {
+      horaires = await getEventTimesByEmployee({ debut, fin });
+    } catch (horaireErr) {
+      console.error('[API Pointages] Lecture de v_pointages impossible :', {
+        message: horaireErr instanceof Error ? horaireErr.message : String(horaireErr),
+        code: horaireErr?.code,
+      });
+    }
+    for (const row of rows) {
+      row.horaire_pointage = horaires.get(String(row.id)) ?? null;
+    }
 
     // 5. Réponse JSON formatée
     return NextResponse.json({

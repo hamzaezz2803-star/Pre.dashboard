@@ -28,6 +28,7 @@ interface ApiPointageRow {
   pointage_max: string | null;
   nb_pointages: number | null;
   zones: string | null;
+  horaire_pointage?: string | null;
   temps_presence_min: number | null;
   absence_min: number | null;
 }
@@ -186,6 +187,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
             lastPunch: r.pointage_max,
             punchCount: Number(r.nb_pointages || 0),
             zones: zonesArray,
+            eventTime: r.horaire_pointage ?? null,
             presenceMinutes: Number(r.temps_presence_min || 0),
             absenceCount,
             absenceDates: [],

@@ -131,6 +131,7 @@ export async function getAttendance(
       lastPunch: last ? `${last.date}T${last.time}` : null,
       punchCount: mine.length,
       zones: [...new Set(mine.map((p) => p.zone))],
+      eventTime: null,
       presenceMinutes,
       absenceCount: absenceDates.length,
       absenceDates,

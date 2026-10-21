@@ -32,6 +32,7 @@ export async function exportAttendanceToExcel(
     { header: "Pointage max", width: 19 },
     { header: "Nb pointages", width: 13 },
     { header: "Zones", width: 38 },
+    { header: "Horaire de pointage", width: 20 },
     { header: "Temps de présence", width: 18 },
     { header: "Absences", width: 11 },
     { header: "Dates d'absence", width: 42 },
@@ -70,7 +71,7 @@ export async function exportAttendanceToExcel(
     cell.value = c.header;
     cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GREEN } };
-    cell.alignment = { vertical: "middle", horizontal: [6, 8, 9].includes(i) ? "center" : "left", wrapText: true };
+    cell.alignment = { vertical: "middle", horizontal: [6, 8, 9, 10].includes(i) ? "center" : "left", wrapText: true };
     cell.border = { bottom: { style: "medium", color: { argb: GREEN } } };
   });
 
@@ -87,6 +88,7 @@ export async function exportAttendanceToExcel(
       r.lastPunch ? formatDateTimeFr(r.lastPunch) : "Aucun",
       r.punchCount,
       r.zones.join(", ") || "Aucune",
+      r.eventTime || "-",
       formatDuration(r.presenceMinutes),
       r.absenceCount,
       r.absenceDates.map(formatDateFr).join(", "),
@@ -97,8 +99,8 @@ export async function exportAttendanceToExcel(
       cell.font = { name: "Calibri", size: 11, color: { argb: "FF14201B" } };
       cell.alignment = {
         vertical: "middle",
-        horizontal: [4, 5, 6, 8, 9].includes(i) ? "center" : "left",
-        wrapText: i === 7 || i === 10,
+        horizontal: [4, 5, 6, 8, 9, 10].includes(i) ? "center" : "left",
+        wrapText: i === 7 || i === 11,
       };
       cell.border = { bottom: thin, left: thin, right: thin };
       if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ZEBRA } };
@@ -108,7 +110,7 @@ export async function exportAttendanceToExcel(
       [5, 6].forEach((c) => (row.getCell(c).font = { name: "Calibri", size: 11, italic: true, color: { argb: "FF8A948F" } }));
     }
     if (r.absenceCount > 0) {
-      const c = row.getCell(10);
+      const c = row.getCell(11);
       c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARN_BG } };
       c.font = { name: "Calibri", size: 11, bold: true, color: { argb: WARN_FG } };
     }
@@ -121,15 +123,15 @@ export async function exportAttendanceToExcel(
   const totals: Record<number, string | number> = {
     1: "Total",
     7: rows.reduce((s, r) => s + r.punchCount, 0),
-    9: formatDuration(totalPresence),
-    10: rows.reduce((s, r) => s + r.absenceCount, 0),
+    10: formatDuration(totalPresence),
+    11: rows.reduce((s, r) => s + r.absenceCount, 0),
   };
   for (let c = 1; c <= lastCol; c++) {
     const cell = totalRow.getCell(c);
     if (totals[c] !== undefined) cell.value = totals[c];
     cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: GREEN } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GREEN_SOFT } };
-    cell.alignment = { vertical: "middle", horizontal: [7, 9, 10].includes(c) ? "center" : "left" };
+    cell.alignment = { vertical: "middle", horizontal: [7, 9, 10, 11].includes(c) ? "center" : "left" };
     cell.border = { top: { style: "medium", color: { argb: GREEN } } };
   }
 

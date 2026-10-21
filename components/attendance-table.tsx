@@ -113,6 +113,12 @@ const columns: ColumnDef<AttendanceRow>[] = [
     },
   },
   {
+    id: "eventTime",
+    header: "Horaire de pointage",
+    accessorFn: (r) => r.eventTime ?? "",
+    cell: (c) => <span className="tabular-nums">{c.getValue<string>() || "-"}</span>,
+  },
+  {
     accessorKey: "presenceMinutes",
     header: "Temps de présence",
     cell: (c) => <span className="tabular-nums">{formatDuration(c.getValue<number>())}</span>,

@@ -24,6 +24,8 @@ export interface AttendanceRow {
   lastPunch: string | null;
   punchCount: number;
   zones: string[];
+  /** Horaire de pointage (v_pointages.event_time, Africa/Casablanca), "JJ/MM/AAAA HH:mm" ou null */
+  eventTime: string | null;
   presenceMinutes: number;
   absenceCount: number;
   absenceDates: string[];
