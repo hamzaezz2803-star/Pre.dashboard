@@ -90,3 +90,12 @@ export function minutesBetween(startTime: string, endTime: string): number {
   const [eh, em] = endTime.split(":").map(Number);
   return eh * 60 + em - (sh * 60 + sm);
 }
+
+
+/** 455 -> "7h 35min". Retourne emptyLabel (défaut "-") si la valeur est 0 ou vide. */
+export function formatDurationLong(totalMinutes: number | null | undefined, emptyLabel = "-"): string {
+  if (!totalMinutes || isNaN(totalMinutes)) return emptyLabel;
+  const h = Math.floor(totalMinutes / 60);
+  const m = Math.round(totalMinutes % 60);
+  return `${h}h ${pad(m)}min`;
+}

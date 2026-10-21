@@ -1,17 +1,15 @@
-import type { AttendanceRow } from "./types";
-import { formatDateFr, formatDateTimeFr, formatDuration } from "./dates";
+import type { PresenceRow } from "./types";
+import { formatDateFr, formatDurationLong } from "./dates";
 import { downloadBlob, loadLogoPng } from "./export-utils";
 
 const GREEN = "FF0F6B4F";
 const GREEN_SOFT = "FFE8F3EE";
 const ZEBRA = "FFF5F8F6";
 const BORDER = "FFD5DDD9";
-const WARN_BG = "FFFFF4E0";
-const WARN_FG = "FF8A5A00";
 
-/** Génère et télécharge le fichier Excel mis en forme (côté navigateur). */
+/** Génère et télécharge le fichier Excel (mêmes colonnes que le tableau, lignes filtrées). */
 export async function exportAttendanceToExcel(
-  rows: AttendanceRow[],
+  rows: PresenceRow[],
   from: string,
   to: string,
 ): Promise<void> {
@@ -24,23 +22,21 @@ export async function exportAttendanceToExcel(
   });
 
   const columns = [
-    { header: "ID", width: 9 },
-    { header: "Nom", width: 16 },
-    { header: "Prénom", width: 16 },
-    { header: "Prestation", width: 28 },
-    { header: "Pointage min", width: 19 },
-    { header: "Pointage max", width: 19 },
-    { header: "Nb pointages", width: 13 },
-    { header: "Zones", width: 38 },
-    { header: "Horaire de pointage", width: 20 },
-    { header: "Temps de présence", width: 18 },
-    { header: "Absences", width: 11 },
-    { header: "Dates d'absence", width: 42 },
+    { header: "ID", width: 10 },
+    { header: "Nom", width: 18 },
+    { header: "Prénom", width: 18 },
+    { header: "Prestation", width: 24 },
+    { header: "Date", width: 13 },
+    { header: "1er pointage", width: 14 },
+    { header: "Dernier pointage", width: 17 },
+    { header: "Nombre de pointages", width: 20 },
+    { header: "Temps de présence", width: 19 },
+    { header: "Statut", width: 16 },
   ];
+  const centered = [4, 5, 6, 7, 8];
   ws.columns = columns.map((c) => ({ width: c.width }));
   const lastCol = columns.length;
 
-  // Bandeau de titre
   for (let r = 1; r <= 3; r++) ws.getRow(r).height = r === 1 ? 26 : 18;
   ws.mergeCells(1, 3, 1, lastCol);
   ws.mergeCells(2, 3, 2, lastCol);
@@ -63,7 +59,6 @@ export async function exportAttendanceToExcel(
     ws.addImage(id, { tl: { col: 0.15, row: 0.1 }, ext: { width: h * (logo.width / logo.height), height: h } });
   }
 
-  // En-têtes
   const headerRow = ws.getRow(5);
   headerRow.height = 24;
   columns.forEach((c, i) => {
@@ -71,67 +66,50 @@ export async function exportAttendanceToExcel(
     cell.value = c.header;
     cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GREEN } };
-    cell.alignment = { vertical: "middle", horizontal: [6, 8, 9, 10].includes(i) ? "center" : "left", wrapText: true };
+    cell.alignment = { vertical: "middle", horizontal: centered.includes(i) ? "center" : "left", wrapText: true };
     cell.border = { bottom: { style: "medium", color: { argb: GREEN } } };
   });
 
-  // Données
   const thin = { style: "thin" as const, color: { argb: BORDER } };
   rows.forEach((r, idx) => {
     const row = ws.getRow(6 + idx);
     const values: (string | number)[] = [
-      r.id,
-      r.nom,
-      r.prenom,
-      r.prestation,
-      r.firstPunch ? formatDateTimeFr(r.firstPunch) : "Aucun",
-      r.lastPunch ? formatDateTimeFr(r.lastPunch) : "Aucun",
-      r.punchCount,
-      r.zones.join(", ") || "Aucune",
-      r.eventTime || "-",
-      formatDuration(r.presenceMinutes),
-      r.absenceCount,
-      r.absenceDates.map(formatDateFr).join(", "),
+      r.empCode,
+      r.lastName,
+      r.firstName,
+      r.deptName,
+      formatDateFr(r.jour),
+      r.premierPointage || "-",
+      r.dernierPointage || "-",
+      r.nbPointages,
+      formatDurationLong(r.tempsPresenceMin),
+      r.statutPresence,
     ];
     values.forEach((v, i) => {
       const cell = row.getCell(i + 1);
       cell.value = v;
       cell.font = { name: "Calibri", size: 11, color: { argb: "FF14201B" } };
-      cell.alignment = {
-        vertical: "middle",
-        horizontal: [4, 5, 6, 8, 9, 10].includes(i) ? "center" : "left",
-        wrapText: i === 7 || i === 11,
-      };
+      cell.alignment = { vertical: "middle", horizontal: centered.includes(i) ? "center" : "left" };
       cell.border = { bottom: thin, left: thin, right: thin };
       if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ZEBRA } };
     });
-    row.height = r.zones.length > 3 || r.absenceCount > 4 ? 32 : 20;
-    if (r.punchCount === 0) {
-      [5, 6].forEach((c) => (row.getCell(c).font = { name: "Calibri", size: 11, italic: true, color: { argb: "FF8A948F" } }));
-    }
-    if (r.absenceCount > 0) {
-      const c = row.getCell(11);
-      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WARN_BG } };
-      c.font = { name: "Calibri", size: 11, bold: true, color: { argb: WARN_FG } };
-    }
+    row.height = 20;
   });
 
-  // Ligne de totaux
+  // Ligne de totaux calculée depuis les lignes exportées
   const totalRow = ws.getRow(6 + rows.length);
   totalRow.height = 22;
-  const totalPresence = rows.reduce((s, r) => s + r.presenceMinutes, 0);
   const totals: Record<number, string | number> = {
     1: "Total",
-    7: rows.reduce((s, r) => s + r.punchCount, 0),
-    10: formatDuration(totalPresence),
-    11: rows.reduce((s, r) => s + r.absenceCount, 0),
+    8: rows.reduce((s, r) => s + r.nbPointages, 0),
+    9: formatDurationLong(rows.reduce((s, r) => s + (r.tempsPresenceMin || 0), 0), "0h 00min"),
   };
   for (let c = 1; c <= lastCol; c++) {
     const cell = totalRow.getCell(c);
     if (totals[c] !== undefined) cell.value = totals[c];
     cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: GREEN } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GREEN_SOFT } };
-    cell.alignment = { vertical: "middle", horizontal: [7, 9, 10, 11].includes(c) ? "center" : "left" };
+    cell.alignment = { vertical: "middle", horizontal: [8, 9].includes(c) ? "center" : "left" };
     cell.border = { top: { style: "medium", color: { argb: GREEN } } };
   }
 

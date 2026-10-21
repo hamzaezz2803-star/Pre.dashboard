@@ -1,10 +1,10 @@
-import type { AttendanceRow } from "./types";
-import { formatDateFr, formatDateTimeFr, formatDuration } from "./dates";
+import type { PresenceRow } from "./types";
+import { formatDateFr, formatDurationLong } from "./dates";
 import { downloadBlob, loadLogoPng } from "./export-utils";
 
 /** Génère et télécharge un PDF paysage A4 des lignes données. */
 export async function exportAttendanceToPdf(
-  rows: AttendanceRow[],
+  rows: PresenceRow[],
   from: string,
   to: string,
 ): Promise<void> {
@@ -40,40 +40,33 @@ export async function exportAttendanceToPdf(
   );
 
   const body = rows.map((r) => [
-    r.id,
-    r.nom,
-    r.prenom,
-    r.prestation,
-    r.firstPunch ? formatDateTimeFr(r.firstPunch) : "Aucun",
-    r.lastPunch ? formatDateTimeFr(r.lastPunch) : "Aucun",
-    String(r.punchCount),
-    r.zones.join(", ") || "Aucune",
-    formatDuration(r.presenceMinutes),
-    r.absenceCount > 0
-      ? `${r.absenceCount} (${r.absenceDates.map((d) => formatDateFr(d).slice(0, 5)).join(", ")})`
-      : "0",
+    r.empCode,
+    r.lastName,
+    r.firstName,
+    r.deptName,
+    formatDateFr(r.jour),
+    r.premierPointage || "-",
+    r.dernierPointage || "-",
+    String(r.nbPointages),
+    formatDurationLong(r.tempsPresenceMin),
+    r.statutPresence || "-",
   ]);
 
   autoTable(doc, {
     startY: 92,
     margin: { left: margin, right: margin, bottom: 36 },
-    head: [["ID", "Nom", "Prénom", "Prestation", "Pointage min", "Pointage max", "Nb", "Zones", "Présence", "Absences"]],
+    head: [["ID", "Nom", "Prénom", "Prestation", "Date", "1er pointage", "Dernier pointage", "Nb pointages", "Temps de présence", "Statut"]],
     body,
     styles: { font: "helvetica", fontSize: 8, cellPadding: 4, lineColor: [213, 221, 217], lineWidth: 0.4, valign: "middle" },
     headStyles: { fillColor: green, textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [245, 248, 246] },
     columnStyles: {
       0: { cellWidth: 34 },
-      4: { halign: "center", cellWidth: 74 },
-      5: { halign: "center", cellWidth: 74 },
-      6: { halign: "center", cellWidth: 28 },
-      8: { halign: "center", cellWidth: 52 },
-    },
-    didParseCell: (data) => {
-      if (data.section === "body" && data.column.index === 9 && data.cell.raw !== "0") {
-        data.cell.styles.textColor = [138, 90, 0];
-        data.cell.styles.fillColor = [255, 244, 224];
-      }
+      4: { halign: "center" },
+      5: { halign: "center" },
+      6: { halign: "center" },
+      7: { halign: "center" },
+      8: { halign: "center" },
     },
     didDrawPage: () => {
       const page = doc.getCurrentPageInfo().pageNumber;

@@ -11,13 +11,13 @@ export interface PointageFilters {
 }
 
 /**
- * Lit la vue v_pointages et retourne, par employé, le dernier horaire de pointage
- * (champ event_time) de la période, déjà converti dans le fuseau Africa/Casablanca
- * et formaté "JJ/MM/AAAA HH:mm".
+ * Lit event_time dans acc_transaction (copie synchronisée de la source) et retourne,
+ * par employé (pin), le dernier horaire de pointage de la période, formaté
+ * "JJ/MM/AAAA HH:mm".
  *
- * Hypothèse : v_pointages expose au minimum les colonnes id (identifiant employé,
- * identique à pointage_journalier.id) et event_time. Si la vue porte d'autres noms
- * de colonnes, ajuster uniquement cette requête.
+ * event_time est un timestamp sans fuseau, déjà exprimé en heure locale
+ * Africa/Casablanca : aucune conversion n'est appliquée.
+ * La vue v_pointages n'existe pas dans les bases (cible et source).
  *
  * Cette lecture est indépendante du calcul de présence et d'absences.
  */
@@ -26,7 +26,7 @@ export async function getEventTimesByEmployee(
 ): Promise<Map<string, string>> {
   const conditions: string[] = [];
   const params: string[] = [];
-  const localTime = `timezone('${POINTAGE_TIME_ZONE}', event_time)`;
+  const localTime = "event_time";
 
   if (filters.debut && filters.debut.trim() !== "") {
     params.push(filters.debut.trim());
@@ -41,11 +41,11 @@ export async function getEventTimesByEmployee(
   const { rows } = await targetPool.query(
     `
       SELECT
-        CAST(id AS TEXT) AS id,
+        CAST(pin AS TEXT) AS id,
         to_char(MAX(${localTime}), 'DD/MM/YYYY HH24:MI') AS horaire_pointage
-      FROM v_pointages
+      FROM acc_transaction
       ${where}
-      GROUP BY id
+      GROUP BY pin
     `,
     params,
   );

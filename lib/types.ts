@@ -47,3 +47,18 @@ export interface EmployeeSuggestion {
   nom: string;
   prenom: string;
 }
+
+/** Une ligne de la vue v_presence_jour (un employe, un jour). */
+export interface PresenceRow {
+  empCode: string;
+  lastName: string;
+  firstName: string;
+  deptName: string;
+  /** YYYY-MM-DD */
+  jour: string;
+  premierPointage: string | null;
+  dernierPointage: string | null;
+  nbPointages: number;
+  tempsPresenceMin: number;
+  statutPresence: string;
+}

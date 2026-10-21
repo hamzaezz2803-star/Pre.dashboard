@@ -1,37 +1,32 @@
-import { CalendarX, Clock, Users } from "lucide-react";
+import { Calendar, Clock, Users } from "lucide-react";
 import { Card, Skeleton } from "@/components/ui/card";
-import { formatDuration } from "@/lib/dates";
-import type { AttendanceRow } from "@/lib/types";
+import { formatDurationLong } from "@/lib/dates";
+import type { PresenceRow } from "@/lib/types";
 
-export function SummaryCards({ rows }: { rows: AttendanceRow[] }) {
-  const withPunch = rows.filter((r) => r.punchCount > 0);
-  const withoutPunch = rows.length - withPunch.length;
-  const totalMinutes = rows.reduce((s, r) => s + r.presenceMinutes, 0);
-  const average = withPunch.length ? totalMinutes / withPunch.length : 0;
-  const totalAbsences = rows.reduce((s, r) => s + r.absenceCount, 0);
-  const absentEmployees = rows.filter((r) => r.absenceCount > 0).length;
+/** Cartes de synthèse calculées uniquement depuis les lignes affichées. */
+export function SummaryCards({ rows }: { rows: PresenceRow[] }) {
+  const employees = new Set(rows.map((r) => r.empCode)).size;
+  const days = new Set(rows.map((r) => r.jour)).size;
+  const totalMinutes = rows.reduce((s, r) => s + (r.tempsPresenceMin || 0), 0);
 
   const items = [
     {
-      label: "Personnel avec pointage",
-      value: `${withPunch.length} / ${rows.length}`,
-      hint:
-        withoutPunch > 0
-          ? `${withoutPunch} sans aucun pointage sur la période`
-          : "Tout le personnel affiché a pointé",
+      label: "Nombre d'employés",
+      value: String(employees),
+      hint: "Employés distincts dans les données affichées",
       Icon: Users,
     },
     {
-      label: "Temps de présence total",
-      value: formatDuration(totalMinutes),
-      hint: `Moyenne par personne pointée : ${formatDuration(average)}`,
-      Icon: Clock,
+      label: "Nombre de jours",
+      value: String(days),
+      hint: "Jours distincts dans les données affichées",
+      Icon: Calendar,
     },
     {
-      label: "Absences (jours ouvrés)",
-      value: String(totalAbsences),
-      hint: `${absentEmployees} ${absentEmployees > 1 ? "personnes concernées" : "personne concernée"}`,
-      Icon: CalendarX,
+      label: "Temps de présence total",
+      value: formatDurationLong(totalMinutes, "0h 00min"),
+      hint: "Somme des temps de présence affichés",
+      Icon: Clock,
     },
   ];
 

@@ -9,48 +9,31 @@ import { SummaryCards, SummaryCardsSkeleton } from "@/components/summary-cards";
 import { Button } from "@/components/ui/button";
 import { Card, fieldClass } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
-import { getDepartments } from "@/lib/attendance-service";
 import { currentMonthRange, isValidISODate } from "@/lib/dates";
-import type { AttendanceRow } from "@/lib/types";
+import type { PresenceRow } from "@/lib/types";
 
 type DataState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "success"; rows: AttendanceRow[]; syncedAt: string | null };
+  | { status: "success"; rows: PresenceRow[] };
 
-interface ApiPointageRow {
-  id: string | number;
-  nom: string | null;
-  prenom: string | null;
-  prestation: string | null;
-  departement: string | null;
-  pointage_min: string | null;
-  pointage_max: string | null;
+/** Ligne telle que renvoyée par /api/presence (colonnes de v_presence_jour). */
+interface ApiPresenceRow {
+  emp_code: string | number;
+  last_name: string | null;
+  first_name: string | null;
+  dept_name: string | null;
+  jour: string;
+  premier_pointage: string | null;
+  dernier_pointage: string | null;
   nb_pointages: number | null;
-  zones: string | null;
-  horaire_pointage?: string | null;
   temps_presence_min: number | null;
-  absence_min: number | null;
+  statut_presence: string | null;
 }
 
 interface ApiResponse {
-  syncedAt: string | null;
-  rows: ApiPointageRow[];
+  rows: ApiPresenceRow[];
   error?: string;
-}
-
-/** Formate la date de synchronisation en "JJ/MM/AAAA HH:mm" */
-function formatSyncedAt(dateStr: string | null | undefined): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return String(dateStr);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const day = pad(d.getDate());
-  const month = pad(d.getMonth() + 1);
-  const year = d.getFullYear();
-  const hours = pad(d.getHours());
-  const minutes = pad(d.getMinutes());
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
@@ -73,22 +56,16 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
+  /** Relance la synchronisation des données sources puis recharge le tableau. */
   const handleRefresh = async () => {
     setIsRefreshing(true);
     setRefreshError(null);
     try {
       const res = await fetch("/api/sync", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok && res.status !== 202) {
         throw new Error(data.error || "Échec de synchronisation");
       }
-
-      const lastRun = data.syncState?.lastRun;
-      if (lastRun) {
-        setState((prev) => (prev.status === "success" ? { ...prev, syncedAt: lastRun } : prev));
-      }
-
       setRetryKey((k) => k + 1);
     } catch {
       setRefreshError("Échec de l'actualisation des données. Veuillez réessayer.");
@@ -112,21 +89,13 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/departements')
+    fetch("/api/presence/departements")
       .then((res) => res.json())
-      .then((depts) => {
-        if (!cancelled && Array.isArray(depts) && depts.length > 0) {
-          setDepartments(depts);
-        } else {
-          getDepartments().then((d) => {
-            if (!cancelled) setDepartments(d);
-          });
-        }
+      .then((depts: unknown) => {
+        if (!cancelled && Array.isArray(depts)) setDepartments(depts as string[]);
       })
       .catch(() => {
-        getDepartments().then((d) => {
-          if (!cancelled) setDepartments(d);
-        });
+        if (!cancelled) setDepartments([]);
       });
     return () => {
       cancelled = true;
@@ -139,70 +108,45 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
     const controller = new AbortController();
 
     queueMicrotask(() => {
-      if (!cancelled) {
-        setState({ status: "loading" });
-      }
+      if (!cancelled) setState({ status: "loading" });
     });
 
-    async function fetchPointages() {
+    async function fetchPresence() {
       try {
         const queryParams = new URLSearchParams();
-        if (from) queryParams.set("debut", from);
-        if (to) queryParams.set("fin", to);
+        queryParams.set("debut", from);
+        queryParams.set("fin", to);
         if (department && department !== "all") queryParams.set("departement", department);
-        if (query && query.trim() !== "") queryParams.set("personnel", query.trim());
+        if (query.trim() !== "") queryParams.set("personnel", query.trim());
 
-        const res = await fetch(`/api/pointages?${queryParams.toString()}`, {
+        const res = await fetch(`/api/presence?${queryParams.toString()}`, {
           signal: controller.signal,
         });
-
-        const data: ApiResponse = await res.json().catch(() => ({ syncedAt: null, rows: [] }));
+        const data: ApiResponse = await res.json().catch(() => ({ rows: [] }));
 
         if (!res.ok) {
           throw new Error(
-            data.error ||
-              `Erreur lors de la récupération des données (code HTTP ${res.status}).`
+            data.error || `Erreur lors de la récupération des données (code HTTP ${res.status}).`,
           );
         }
-
         if (cancelled) return;
 
-        const mappedRows: AttendanceRow[] = (data.rows || []).map((r) => {
-          const zonesArray = r.zones
-            ? r.zones
-                .split(",")
-                .map((z) => z.trim())
-                .filter(Boolean)
-            : [];
-
-          const absenceMinutes = Number(r.absence_min || 0);
-          const absenceCount = absenceMinutes > 0 ? Math.max(1, Math.round(absenceMinutes / 480)) : 0;
-
-          return {
-            id: String(r.id),
-            nom: r.nom || "",
-            prenom: r.prenom || "",
-            prestation: r.prestation || "",
-            firstPunch: r.pointage_min,
-            lastPunch: r.pointage_max,
-            punchCount: Number(r.nb_pointages || 0),
-            zones: zonesArray,
-            eventTime: r.horaire_pointage ?? null,
-            presenceMinutes: Number(r.temps_presence_min || 0),
-            absenceCount,
-            absenceDates: [],
-          };
-        });
-
-        setState({
-          status: "success",
-          rows: mappedRows,
-          syncedAt: data.syncedAt,
-        });
+        const rows: PresenceRow[] = (data.rows || []).map((r) => ({
+          empCode: String(r.emp_code),
+          lastName: r.last_name || "",
+          firstName: r.first_name || "",
+          deptName: r.dept_name || "",
+          jour: r.jour,
+          premierPointage: r.premier_pointage || null,
+          dernierPointage: r.dernier_pointage || null,
+          nbPointages: Number(r.nb_pointages || 0),
+          tempsPresenceMin: Number(r.temps_presence_min || 0),
+          statutPresence: r.statut_presence || "",
+        }));
+        setState({ status: "success", rows });
       } catch (err: unknown) {
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
-
         setState({
           status: "error",
           message:
@@ -213,7 +157,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
       }
     }
 
-    fetchPointages();
+    fetchPresence();
 
     return () => {
       cancelled = true;
@@ -223,19 +167,11 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pointages du personnel</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Consultez les présences, zones et absences par département et par période.
-          </p>
-        </div>
-        {state.status === "success" && state.syncedAt && (
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-xs">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
-            <span>Données à jour au {formatSyncedAt(state.syncedAt)}</span>
-          </div>
-        )}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Pointages du personnel</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Consultez la présence de chaque employé, jour par jour, par département et par période.
+        </p>
       </div>
 
       <Card className="p-4">
@@ -320,9 +256,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
           <AlertCircle className="size-8 text-danger" aria-hidden="true" />
           <div>
             <p className="font-semibold text-danger">Impossible de charger les pointages</p>
-            <p className="mt-1 text-sm text-muted-foreground max-w-md">
-              {state.message}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground max-w-md">{state.message}</p>
           </div>
           <Button onClick={() => setRetryKey((k) => k + 1)}>
             <RotateCcw className="size-4" aria-hidden="true" />
@@ -334,7 +268,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
           <SearchX className="size-8 text-muted-foreground" aria-hidden="true" />
           <div>
             <p className="font-medium">Aucun résultat</p>
-            <p className="text-sm text-muted-foreground">Aucun personnel ne correspond à ces filtres.</p>
+            <p className="text-sm text-muted-foreground">Aucune donnée ne correspond à ces filtres.</p>
           </div>
           <Button variant="outline" onClick={() => updateParams({ dept: null, q: null, from: null, to: null })}>
             Réinitialiser les filtres

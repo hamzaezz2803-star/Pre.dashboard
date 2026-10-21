@@ -2,10 +2,23 @@
 
 import { Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { searchEmployees } from "@/lib/attendance-service";
 import type { EmployeeSuggestion } from "@/lib/types";
 import { fieldClass } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+/** Suggestions (emp_code, nom, prénom) lues côté serveur dans v_presence_jour. */
+async function searchEmployees(query: string): Promise<EmployeeSuggestion[]> {
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const res = await fetch(`/api/presence/personnel?q=${encodeURIComponent(q)}`);
+    if (!res.ok) return [];
+    const data: unknown = await res.json();
+    return Array.isArray(data) ? (data as EmployeeSuggestion[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 interface Props {
   /** Valeur appliquée (issue de l'URL) */

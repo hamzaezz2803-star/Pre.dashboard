@@ -13,120 +13,74 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  CalendarX,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
   FileText,
   RefreshCw,
 } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, Skeleton } from "@/components/ui/card";
 import { exportAttendanceToExcel } from "@/lib/export-excel";
 import { exportAttendanceToPdf } from "@/lib/export-pdf";
-import { formatDateFr, formatDateTimeFr, formatDuration } from "@/lib/dates";
-import type { AttendanceRow } from "@/lib/types";
+import { formatDateFr, formatDurationLong } from "@/lib/dates";
+import type { PresenceRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
-function AbsenceCell({ row }: { row: AttendanceRow }) {
-  const tipId = useId();
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+const dash = <span className="text-muted-foreground">-</span>;
 
-  if (row.absenceCount === 0) {
-    return <span className="tabular-nums text-muted-foreground">0</span>;
-  }
-
-  function show(el: HTMLElement) {
-    const r = el.getBoundingClientRect();
-    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - 232)) });
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        aria-describedby={pos ? tipId : undefined}
-        onMouseEnter={(e) => show(e.currentTarget)}
-        onMouseLeave={() => setPos(null)}
-        onFocus={(e) => show(e.currentTarget)}
-        onBlur={() => setPos(null)}
-        onKeyDown={(e) => e.key === "Escape" && setPos(null)}
-        className="inline-flex items-center gap-1.5 rounded-md bg-warning-soft px-2 py-0.5 text-warning tabular-nums"
-      >
-        <CalendarX className="size-3.5" aria-hidden="true" />
-        {row.absenceCount}
-        <span className="sr-only">
-          {row.absenceCount > 1 ? "absences" : "absence"} : {row.absenceDates.map(formatDateFr).join(", ")}
-        </span>
-      </button>
-      {pos && (
-        <div
-          id={tipId}
-          role="tooltip"
-          style={{ top: pos.top, left: pos.left }}
-          className="pointer-events-none fixed z-50 max-h-56 w-56 overflow-hidden rounded-md border border-border bg-surface p-3 text-xs shadow-md"
-        >
-          <p className="mb-1 font-medium">Jours d&apos;absence</p>
-          <p className="text-muted-foreground">{row.absenceDates.map(formatDateFr).join(", ")}</p>
-        </div>
-      )}
-    </>
-  );
-}
-
-const columns: ColumnDef<AttendanceRow>[] = [
-  { accessorKey: "id", header: "ID", cell: (c) => <span className="font-mono text-xs">{c.getValue<string>()}</span> },
-  { accessorKey: "nom", header: "Nom" },
-  { accessorKey: "prenom", header: "Prénom" },
-  { accessorKey: "prestation", header: "Prestation" },
+const columns: ColumnDef<PresenceRow>[] = [
   {
-    id: "firstPunch",
-    header: "Pointage min",
-    accessorFn: (r) => r.firstPunch ?? undefined,
+    accessorKey: "empCode",
+    header: "ID",
+    cell: (c) => <span className="font-mono text-xs">{c.getValue<string>()}</span>,
+  },
+  { accessorKey: "lastName", header: "Nom" },
+  { accessorKey: "firstName", header: "Prénom" },
+  { accessorKey: "deptName", header: "Prestation" },
+  {
+    accessorKey: "jour",
+    header: "Date",
+    cell: (c) => <span className="tabular-nums">{formatDateFr(c.getValue<string>())}</span>,
+  },
+  {
+    accessorKey: "premierPointage",
+    header: "1er pointage",
     sortUndefined: "last",
     cell: (c) => {
-      const v = c.getValue<string | undefined>();
-      return v ? <span className="tabular-nums">{formatDateTimeFr(v)}</span> : <span className="text-muted-foreground">Aucun</span>;
+      const v = c.getValue<string | null>();
+      return v ? <span className="tabular-nums">{v}</span> : dash;
     },
   },
   {
-    id: "lastPunch",
-    header: "Pointage max",
-    accessorFn: (r) => r.lastPunch ?? undefined,
+    accessorKey: "dernierPointage",
+    header: "Dernier pointage",
     sortUndefined: "last",
     cell: (c) => {
-      const v = c.getValue<string | undefined>();
-      return v ? <span className="tabular-nums">{formatDateTimeFr(v)}</span> : <span className="text-muted-foreground">Aucun</span>;
-    },
-  },
-  { accessorKey: "punchCount", header: "Nb pointages", cell: (c) => <span className="tabular-nums">{c.getValue<number>()}</span> },
-  {
-    id: "zones",
-    header: "Zones",
-    accessorFn: (r) => r.zones.join(", "),
-    cell: (c) => {
-      const v = c.getValue<string>();
-      return v || <span className="text-muted-foreground">Aucune</span>;
+      const v = c.getValue<string | null>();
+      return v ? <span className="tabular-nums">{v}</span> : dash;
     },
   },
   {
-    id: "eventTime",
-    header: "Horaire de pointage",
-    accessorFn: (r) => r.eventTime ?? "",
-    cell: (c) => <span className="tabular-nums">{c.getValue<string>() || "-"}</span>,
+    accessorKey: "nbPointages",
+    header: "Nombre de pointages",
+    cell: (c) => <span className="tabular-nums">{c.getValue<number>()}</span>,
   },
   {
-    accessorKey: "presenceMinutes",
+    accessorKey: "tempsPresenceMin",
     header: "Temps de présence",
-    cell: (c) => <span className="tabular-nums">{formatDuration(c.getValue<number>())}</span>,
+    cell: (c) => {
+      const v = formatDurationLong(c.getValue<number>());
+      return v === "-" ? dash : <span className="tabular-nums">{v}</span>;
+    },
   },
   {
-    accessorKey: "absenceCount",
-    header: "Absences",
-    cell: (c) => <AbsenceCell row={c.row.original} />,
+    accessorKey: "statutPresence",
+    header: "Statut",
+    cell: (c) => c.getValue<string>() || dash,
   },
 ];
 
@@ -138,7 +92,7 @@ export function AttendanceTable({
   isRefreshing = false,
   refreshError = null,
 }: {
-  rows: AttendanceRow[];
+  rows: PresenceRow[];
   from: string;
   to: string;
   onRefresh?: () => void;
@@ -198,7 +152,7 @@ export function AttendanceTable({
               aria-label="Actualiser les pointages"
             >
               <RefreshCw className={cn("size-4 text-primary", isRefreshing && "animate-spin")} aria-hidden="true" />
-              <span>{isRefreshing ? "Mise à jour…" : "Actualiser"}</span>
+              <span>{isRefreshing ? "Mise à jour..." : "Actualiser"}</span>
             </Button>
           )}
           <Button
@@ -260,13 +214,7 @@ export function AttendanceTable({
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="border-t border-border hover:bg-muted/50">
                 {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    className={cn(
-                      "px-3 py-2.5 align-middle",
-                      cell.column.id === "zones" ? "min-w-48" : "whitespace-nowrap",
-                    )}
-                  >
+                  <td key={cell.id} className="whitespace-nowrap px-3 py-2.5 align-middle">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
