@@ -222,7 +222,7 @@ export function AttendanceTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+        <table className="w-full border-collapse text-left text-xs sm:text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
@@ -233,7 +233,7 @@ export function AttendanceTable({
                       key={h.id}
                       scope="col"
                       aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}
-                      className="whitespace-nowrap px-3 py-2 font-medium"
+                      className="whitespace-nowrap px-2 py-2 sm:px-2.5 font-medium"
                     >
                       <button
                         type="button"
@@ -259,7 +259,7 @@ export function AttendanceTable({
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="border-t border-border hover:bg-muted/50">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="whitespace-nowrap px-3 py-2.5 align-middle">
+                  <td key={cell.id} className="px-2 py-2 sm:px-2.5 sm:py-2.5 align-middle">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
