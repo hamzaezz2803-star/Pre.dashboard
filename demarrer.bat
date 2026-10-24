@@ -1,22 +1,14 @@
 @echo off
-title OCP Pointage
+title OCP Dashboard
 cd /d "C:\ocpdahsboard"
 
-echo Demarrage de l'application...
-call pm2 describe ocp-pointage >nul 2>&1
-if errorlevel 1 (
-  call pm2 start ecosystem.config.js
-) else (
-  call pm2 restart ocp-pointage
-)
+rem Arrete un ancien serveur encore actif sur le port 3001
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 
-echo.
-call pm2 status
-echo.
-echo Ouverture du navigateur dans quelques secondes...
-timeout /t 8 /nobreak >nul
-start "" http://localhost:3000
+rem Lance le serveur de developpement dans une fenetre reduite
+start "OCP Dashboard Server" /min cmd /c "npm run dev -- -p 3001"
 
-echo.
-echo L'application tourne en arriere-plan. Vous pouvez fermer cette fenetre.
-pause
+rem Laisse le temps au serveur de demarrer, puis ouvre le navigateur
+timeout /t 10 /nobreak >nul
+start "" http://localhost:3001
+exit

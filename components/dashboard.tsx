@@ -1,8 +1,9 @@
 "use client";
 
-import { AlertCircle, RotateCcw, SearchX } from "lucide-react";
+import { AlertCircle, BarChart3, RotateCcw, SearchX, TableProperties } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { AttendanceStats } from "@/components/attendance-stats";
 import { AttendanceTable, AttendanceTableSkeleton } from "@/components/attendance-table";
 import { EmployeeSearch } from "@/components/employee-search";
 import { SummaryCards, SummaryCardsSkeleton } from "@/components/summary-cards";
@@ -12,6 +13,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { currentMonthRange, isValidISODate } from "@/lib/dates";
 import { formatStatut, getStatutTon, type StatutTon } from "@/lib/status";
 import type { PresenceRow } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const STATUT_OPTIONS: { value: StatutTon; label: string }[] = [
   { value: "present", label: "Présent" },
@@ -64,6 +66,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
 
   const [departments, setDepartments] = useState<string[]>([]);
   const [state, setState] = useState<DataState>({ status: "loading" });
+  const [activeView, setActiveView] = useState<"table" | "stats">("table");
   const [retryKey, setRetryKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -317,14 +320,54 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
       ) : (
         <>
           <SummaryCards rows={state.rows} />
-          <AttendanceTable
-            rows={filteredRows(state.rows)}
-            from={from}
-            to={to}
-            onRefresh={userRole === "super_admin" ? handleRefresh : undefined}
-            isRefreshing={isRefreshing}
-            refreshError={refreshError}
-          />
+
+          <div className="flex items-center justify-between pt-2">
+            <div className="inline-flex rounded-lg bg-muted p-1 border border-border/60">
+              <button
+                type="button"
+                onClick={() => setActiveView("table")}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-all cursor-pointer",
+                  activeView === "table"
+                    ? "bg-surface text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <TableProperties className="size-4" />
+                Tableau ({filteredRows(state.rows).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView("stats")}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-all cursor-pointer",
+                  activeView === "stats"
+                    ? "bg-surface text-primary shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <BarChart3 className="size-4" />
+                Statistiques & Graphiques
+              </button>
+            </div>
+          </div>
+
+          {activeView === "table" ? (
+            <AttendanceTable
+              rows={filteredRows(state.rows)}
+              from={from}
+              to={to}
+              onRefresh={userRole === "super_admin" ? handleRefresh : undefined}
+              isRefreshing={isRefreshing}
+              refreshError={refreshError}
+            />
+          ) : (
+            <AttendanceStats
+              rows={filteredRows(state.rows)}
+              from={from}
+              to={to}
+            />
+          )}
         </>
       )}
     </main>
