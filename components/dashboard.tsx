@@ -321,38 +321,40 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
         <>
           <SummaryCards rows={state.rows} />
 
-          <div className="flex items-center justify-between pt-2">
-            <div className="inline-flex rounded-lg bg-muted p-1 border border-border/60">
-              <button
-                type="button"
-                onClick={() => setActiveView("table")}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-all cursor-pointer",
-                  activeView === "table"
-                    ? "bg-surface text-foreground shadow-xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <TableProperties className="size-4" />
-                Tableau ({filteredRows(state.rows).length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveView("stats")}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-all cursor-pointer",
-                  activeView === "stats"
-                    ? "bg-surface text-primary shadow-xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <BarChart3 className="size-4" />
-                Statistiques & Graphiques
-              </button>
+          {userRole === "super_admin" && (
+            <div className="flex items-center justify-between pt-2">
+              <div className="inline-flex rounded-lg bg-muted p-1 border border-border/60">
+                <button
+                  type="button"
+                  onClick={() => setActiveView("table")}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-all cursor-pointer",
+                    activeView === "table"
+                      ? "bg-surface text-foreground shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <TableProperties className="size-4" />
+                  Tableau ({filteredRows(state.rows).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveView("stats")}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-all cursor-pointer",
+                    activeView === "stats"
+                      ? "bg-surface text-primary shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <BarChart3 className="size-4" />
+                  Statistiques & Graphiques
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {activeView === "table" ? (
+          {activeView === "table" || userRole !== "super_admin" ? (
             <AttendanceTable
               rows={filteredRows(state.rows)}
               from={from}
@@ -364,8 +366,12 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
           ) : (
             <AttendanceStats
               rows={filteredRows(state.rows)}
+              allRows={state.rows}
               from={from}
               to={to}
+              activeDept={department}
+              activeStatut={statutFilter}
+              onResetFilters={() => updateParams({ dept: null, statut: null, q: null })}
             />
           )}
         </>

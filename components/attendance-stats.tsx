@@ -1,28 +1,41 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
-  Award,
+  AlertCircle,
+  ArrowUpDown,
   Building2,
   Calendar,
   CheckCircle2,
   Clock,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  FilterX,
   PieChart as PieIcon,
+  Printer,
+  RefreshCw,
+  ShieldCheck,
   TrendingUp,
+  UserCheck,
   Users,
-  XCircle,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatDurationLong } from "@/lib/dates";
-import { formatStatut, getStatutTon, type StatutTon } from "@/lib/status";
+import { formatDateFr, formatDurationLong } from "@/lib/dates";
+import { exportStatsToExcel, exportStatsToPdf, type StatsExportData } from "@/lib/export-stats";
+import { getStatutTon, type StatutTon } from "@/lib/status";
 import type { PresenceRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface AttendanceStatsProps {
   rows: PresenceRow[];
-  from?: string;
-  to?: string;
+  allRows?: PresenceRow[];
+  from: string;
+  to: string;
+  activeDept?: string;
+  activeStatut?: string;
+  onResetFilters?: () => void;
 }
 
 const STATUT_CONFIG: Record<
@@ -37,7 +50,7 @@ const STATUT_CONFIG: Record<
     borderClass: "border-emerald-500/20 bg-emerald-500/5",
   },
   anomalie: {
-    label: "Anomalie / Retard",
+    label: "Retard / Anomalie",
     color: "#f59e0b",
     bgClass: "bg-amber-500",
     textClass: "text-amber-700 dark:text-amber-400",
@@ -51,7 +64,7 @@ const STATUT_CONFIG: Record<
     borderClass: "border-red-500/20 bg-red-500/5",
   },
   "sans-horaire": {
-    label: "Pas d'horaire",
+    label: "Sans horaire",
     color: "#94a3b8",
     bgClass: "bg-slate-400",
     textClass: "text-slate-600 dark:text-slate-400",
@@ -59,18 +72,31 @@ const STATUT_CONFIG: Record<
   },
 };
 
-export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
-  const [hoveredStatus, setHoveredStatus] = useState<StatutTon | null>(null);
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+type DeptSortField = "rate" | "total" | "minutes";
 
-  // 1. Calculs globaux
+export function AttendanceStats({
+  rows,
+  allRows,
+  from,
+  to,
+  activeDept,
+  activeStatut,
+  onResetFilters,
+}: AttendanceStatsProps) {
+  const [hoveredStatus, setHoveredStatus] = useState<StatutTon | null>(null);
+  const [deptSort, setDeptSort] = useState<DeptSortField>("rate");
+  const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
+
+  const hasRestrictedFilter =
+    (activeDept && activeDept !== "all") || (activeStatut && activeStatut !== "all");
+
+  // 1. Calculs globaux et structuration des données
   const stats = useMemo(() => {
     const totalRecords = rows.length;
     const uniqueEmployees = new Set(rows.map((r) => r.empCode)).size;
     const uniqueDays = new Set(rows.map((r) => r.jour)).size;
     const totalMinutes = rows.reduce((acc, r) => acc + (r.tempsPresenceMin || 0), 0);
 
-    // Répartition par statut
     const statusCounts: Record<StatutTon, number> = {
       present: 0,
       anomalie: 0,
@@ -85,17 +111,16 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
 
     const presentCount = statusCounts.present;
     const anomalieCount = statusCounts.anomalie;
-    const absentCount = statusCounts.absent;
 
     const presenceRate =
       totalRecords > 0 ? Math.round(((presentCount + anomalieCount) / totalRecords) * 100) : 0;
     const ponctualityRate =
       totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : 0;
-    const anomalyRate = totalRecords > 0 ? Math.round((anomalieCount / totalRecords) * 100) : 0;
-
+    const anomalyRate =
+      totalRecords > 0 ? Math.round((anomalieCount / totalRecords) * 100) : 0;
     const avgMinutesPerRecord = totalRecords > 0 ? Math.round(totalMinutes / totalRecords) : 0;
 
-    // Répartition par département
+    // Synthèse par département
     const deptsMap = new Map<
       string,
       {
@@ -151,10 +176,7 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
       };
     });
 
-    // Trier par nombre total décroissant
-    deptsList.sort((a, b) => b.total - a.total);
-
-    // Répartition par date
+    // Synthèse par date
     const daysMap = new Map<
       string,
       { jour: string; present: number; anomalie: number; absent: number; total: number; minutes: number }
@@ -191,15 +213,57 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
     };
   }, [rows]);
 
-  if (rows.length === 0) {
-    return (
-      <Card className="p-12 text-center text-muted-foreground">
-        Aucune donnée disponible pour afficher les graphiques avec les filtres sélectionnés.
-      </Card>
-    );
+  // Tri des départements selon le critère choisi
+  const sortedDepts = useMemo(() => {
+    return [...stats.deptsList].sort((a, b) => {
+      if (deptSort === "rate") return b.rate - a.rate || b.total - a.total;
+      if (deptSort === "total") return b.total - a.total;
+      return b.minutes - a.minutes;
+    });
+  }, [stats.deptsList, deptSort]);
+
+  // Export handlers
+  async function handleExportPdf() {
+    setExporting("pdf");
+    try {
+      const exportData: StatsExportData = {
+        totalRecords: stats.totalRecords,
+        uniqueEmployees: stats.uniqueEmployees,
+        uniqueDays: stats.uniqueDays,
+        totalMinutes: stats.totalMinutes,
+        presenceRate: stats.presenceRate,
+        ponctualityRate: stats.ponctualityRate,
+        anomalyRate: stats.anomalyRate,
+        statusCounts: stats.statusCounts,
+        deptsList: sortedDepts,
+      };
+      await exportStatsToPdf(exportData, from, to);
+    } finally {
+      setExporting(null);
+    }
   }
 
-  // Calcul des coordonnées SVG pour le Donut
+  async function handleExportExcel() {
+    setExporting("excel");
+    try {
+      const exportData: StatsExportData = {
+        totalRecords: stats.totalRecords,
+        uniqueEmployees: stats.uniqueEmployees,
+        uniqueDays: stats.uniqueDays,
+        totalMinutes: stats.totalMinutes,
+        presenceRate: stats.presenceRate,
+        ponctualityRate: stats.ponctualityRate,
+        anomalyRate: stats.anomalyRate,
+        statusCounts: stats.statusCounts,
+        deptsList: sortedDepts,
+      };
+      await exportStatsToExcel(exportData, from, to);
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  // Calcul du Donut SVG
   const donutSegments = useMemo(() => {
     const total = stats.totalRecords || 1;
     let accumulatedAngle = 0;
@@ -223,7 +287,6 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
     });
   }, [stats.statusCounts, stats.totalRecords]);
 
-  // Fonction utilitaire pour dessiner un arc SVG
   function describeArc(
     x: number,
     y: number,
@@ -259,96 +322,187 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
     ].join(" ");
   }
 
-  const maxDeptCount = Math.max(...stats.deptsList.map((d) => d.total), 1);
   const maxDayCount = Math.max(...stats.daysList.map((d) => d.total), 1);
+
+  if (rows.length === 0) {
+    return (
+      <Card className="p-12 text-center text-muted-foreground">
+        <p className="font-medium text-base">Aucune donnée disponible</p>
+        <p className="mt-1 text-sm">Modifiez vos filtres de dates ou de département pour afficher les graphiques.</p>
+        {onResetFilters && (
+          <Button variant="outline" className="mt-4" onClick={onResetFilters}>
+            Réinitialiser les filtres
+          </Button>
+        )}
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* 1. Ligne de KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="p-4 transition-all hover:shadow-xs border-primary/20 bg-primary/5">
-          <div className="flex items-center justify-between text-sm text-primary">
-            <span className="font-medium">Taux d&apos;Assiduité Global</span>
-            <CheckCircle2 className="size-5" />
+      {/* 1. Barre d'action supérieure & Options d'export */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl bg-surface border border-border/70 shadow-2xs">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-foreground flex items-center gap-2">
+            <PieIcon className="size-4 text-primary" />
+            Tableau de Bord Analytique & Graphiques
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Synthèse d&apos;assiduité du {formatDateFr(from)} au {formatDateFr(to)} ({stats.totalRecords} pointages)
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={handleExportPdf}
+            disabled={exporting !== null}
+            className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer hover:border-red-500/40"
+          >
+            <FileText className="size-3.5 text-red-600" />
+            <span>{exporting === "pdf" ? "Export..." : "Rapport PDF"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            disabled={exporting !== null}
+            className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer hover:border-emerald-500/40"
+          >
+            <FileSpreadsheet className="size-3.5 text-emerald-600" />
+            <span>{exporting === "excel" ? "Export..." : "Données Excel"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => window.print()}
+            className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer"
+            title="Imprimer cette vue"
+          >
+            <Printer className="size-3.5 text-muted-foreground" />
+            <span>Imprimer</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Bannière d'avertissement si un filtre restrictif est actif */}
+      {hasRestrictedFilter && onResetFilters && (
+        <div className="flex items-center justify-between p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="size-4 shrink-0 text-amber-600" />
+            <span>
+              <strong>Filtre actif :</strong> Vos graphiques affichent uniquement les données filtrées (
+              {activeDept && activeDept !== "all" ? `Département : ${activeDept}` : ""}
+              {activeDept && activeDept !== "all" && activeStatut && activeStatut !== "all" ? " · " : ""}
+              {activeStatut && activeStatut !== "all" ? `Statut : ${activeStatut}` : ""}
+              ).
+            </span>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-primary tabular-nums">
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="inline-flex items-center gap-1 font-semibold underline hover:no-underline ml-2 shrink-0 cursor-pointer"
+          >
+            <FilterX className="size-3.5" />
+            Afficher la vue globale
+          </button>
+        </div>
+      )}
+
+      {/* 2. Cartes KPIs Synthétiques (Grands Chiffres Faciles à Analyser) */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="p-4 border-emerald-500/30 bg-emerald-500/5">
+          <div className="flex items-center justify-between text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            <span>Taux de Présence Global</span>
+            <CheckCircle2 className="size-4" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
               {stats.presenceRate}%
             </span>
-            <span className="text-xs text-muted-foreground">de présence</span>
+            <span className="text-xs text-muted-foreground font-medium">d&apos;assiduité</span>
           </div>
-          <div className="mt-2.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+          <div className="mt-3 h-2 w-full rounded-full bg-emerald-500/20 overflow-hidden">
             <div
-              className="h-full rounded-full bg-primary transition-all duration-500"
+              className="h-full rounded-full bg-emerald-600 dark:bg-emerald-500 transition-all duration-500"
               style={{ width: `${stats.presenceRate}%` }}
             />
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {stats.statusCounts.present} à l&apos;heure · {stats.statusCounts.anomalie} anomalies
+          </p>
         </Card>
 
-        <Card className="p-4 transition-all hover:shadow-xs border-amber-500/20 bg-amber-500/5">
-          <div className="flex items-center justify-between text-sm text-amber-700 dark:text-amber-400">
-            <span className="font-medium">Taux de Ponctualité</span>
-            <TrendingUp className="size-5" />
+        <Card className="p-4 border-amber-500/30 bg-amber-500/5">
+          <div className="flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-400">
+            <span>Taux de Ponctualité</span>
+            <TrendingUp className="size-4" />
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-2 flex items-baseline gap-2">
             <span className="text-3xl font-bold tracking-tight text-amber-700 dark:text-amber-400 tabular-nums">
               {stats.ponctualityRate}%
             </span>
-            <span className="text-xs text-muted-foreground">à l&apos;heure</span>
+            <span className="text-xs text-muted-foreground font-medium">à l&apos;heure</span>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {stats.statusCounts.anomalie} anomalies / retards détectés
+          <div className="mt-3 h-2 w-full rounded-full bg-amber-500/20 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-amber-500 transition-all duration-500"
+              style={{ width: `${stats.ponctualityRate}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {stats.statusCounts.anomalie} retards ou sorties manquantes ({stats.anomalyRate}%)
           </p>
         </Card>
 
-        <Card className="p-4 transition-all hover:shadow-xs">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span className="font-medium">Temps de Travail Total</span>
-            <Clock className="size-5" />
+        <Card className="p-4 border-border/80">
+          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+            <span>Volume Horaire Cumulé</span>
+            <Clock className="size-4" />
           </div>
-          <div className="mt-3">
+          <div className="mt-2">
             <span className="text-3xl font-bold tracking-tight tabular-nums">
-              {formatDurationLong(stats.totalMinutes, "0h 00min")}
+              {formatDurationLong(stats.totalMinutes, "0h 00m")}
             </span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Moyenne : {formatDurationLong(stats.avgMinutesPerRecord, "0h 00min")} / jour-employé
+            Moyenne : <strong>{formatDurationLong(stats.avgMinutesPerRecord, "0h 00m")}</strong> / jour-employé
           </p>
         </Card>
 
-        <Card className="p-4 transition-all hover:shadow-xs">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span className="font-medium">Volume & Départements</span>
-            <Building2 className="size-5" />
+        <Card className="p-4 border-border/80">
+          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+            <span>Couverture Globale</span>
+            <Users className="size-4" />
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-2 flex items-baseline gap-2">
             <span className="text-3xl font-bold tracking-tight tabular-nums">
-              {stats.deptsList.length}
+              {stats.uniqueEmployees}
             </span>
-            <span className="text-sm font-medium text-foreground">départements</span>
+            <span className="text-sm font-medium text-foreground">employés suivis</span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {stats.uniqueEmployees} employés distincts sur {stats.uniqueDays} jours
+            Répartis sur <strong>{stats.deptsList.length} départements</strong> ({stats.uniqueDays} jours analysés)
           </p>
         </Card>
       </div>
 
-      {/* 2. Deux graphiques majeurs : Statuts (Donut) & Départements (Barres empilées) */}
+      {/* 3. Section des Deux Graphiques Principaux */}
       <div className="grid gap-6 lg:grid-cols-12">
-        {/* GRAPHE 1 : Répartition par Statut (Donut) */}
+        {/* GRAPHIQUE 1 : Répartition par Statut (Donut + Synthèse Rapide) */}
         <Card className="p-5 lg:col-span-5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold tracking-tight flex items-center gap-2">
+              <h3 className="text-sm font-semibold tracking-tight flex items-center gap-2">
                 <PieIcon className="size-4 text-primary" />
-                Répartition par Statut
-              </h2>
-              <span className="text-xs text-muted-foreground font-mono">
+                Répartition Globale par Statut
+              </h3>
+              <span className="text-xs font-mono font-medium text-muted-foreground">
                 {stats.totalRecords} total
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Proportion des présences, retards, anomalies et absences.
+              Proportion des présences régulières, retards, anomalies et absences.
             </p>
           </div>
 
@@ -378,22 +532,21 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
                   );
                 })}
               </svg>
-              {/* Centre du Donut */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                <span className="text-2xl font-bold tabular-nums">
+                <span className="text-3xl font-extrabold tabular-nums tracking-tight">
                   {hoveredStatus
                     ? stats.statusCounts[hoveredStatus]
                     : `${stats.presenceRate}%`}
                 </span>
-                <span className="text-xs text-muted-foreground font-medium px-2 truncate max-w-[110px]">
+                <span className="text-xs text-muted-foreground font-semibold px-2 truncate max-w-[120px]">
                   {hoveredStatus ? STATUT_CONFIG[hoveredStatus].label : "Présents"}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Légende interactive sous le Donut */}
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
+          {/* Grille explicative et détaillée des statuts */}
+          <div className="space-y-2 pt-3 border-t">
             {(Object.keys(STATUT_CONFIG) as StatutTon[]).map((key) => {
               const cfg = STATUT_CONFIG[key];
               const count = stats.statusCounts[key];
@@ -407,19 +560,21 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
                   onMouseLeave={() => setHoveredStatus(null)}
                   className={cn(
                     "flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors border",
-                    isHovered ? cfg.borderClass : "border-transparent hover:bg-muted/50"
+                    isHovered ? cfg.borderClass : "border-border/50 hover:bg-muted/40"
                   )}
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span
-                      className="size-2.5 rounded-full shrink-0"
+                      className="size-3 rounded-full shrink-0 shadow-2xs"
                       style={{ backgroundColor: cfg.color }}
                     />
-                    <span className="truncate font-medium">{cfg.label}</span>
+                    <span className="font-medium text-xs truncate">{cfg.label}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 pl-1">
-                    <span className="font-semibold tabular-nums">{count}</span>
-                    <span className="text-muted-foreground">({pct}%)</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-bold tabular-nums">{count} cas</span>
+                    <span className="text-xs text-muted-foreground tabular-nums font-semibold min-w-[36px] text-right">
+                      {pct}%
+                    </span>
                   </div>
                 </div>
               );
@@ -427,53 +582,89 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
           </div>
         </Card>
 
-        {/* GRAPHE 2 : Répartition par Département (Barres empilées horizontales) */}
+        {/* GRAPHIQUE 2 : Comparatif des Départements (Intuitif & Triable) */}
         <Card className="p-5 lg:col-span-7 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold tracking-tight flex items-center gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-sm font-semibold tracking-tight flex items-center gap-2">
                 <Building2 className="size-4 text-primary" />
-                Présence par Département
-              </h2>
-              <span className="text-xs text-muted-foreground font-mono">
-                {stats.deptsList.length} départements
-              </span>
+                Comparatif des Départements
+              </h3>
+
+              {/* Sélecteur de tri rapide */}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted p-1 rounded-md">
+                <ArrowUpDown className="size-3" />
+                <span>Trier :</span>
+                <button
+                  type="button"
+                  onClick={() => setDeptSort("rate")}
+                  className={cn(
+                    "px-2 py-0.5 rounded cursor-pointer transition-colors font-medium",
+                    deptSort === "rate"
+                      ? "bg-surface text-foreground shadow-2xs"
+                      : "hover:text-foreground"
+                  )}
+                >
+                  Assiduité %
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeptSort("total")}
+                  className={cn(
+                    "px-2 py-0.5 rounded cursor-pointer transition-colors font-medium",
+                    deptSort === "total"
+                      ? "bg-surface text-foreground shadow-2xs"
+                      : "hover:text-foreground"
+                  )}
+                >
+                  Pointages
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeptSort("minutes")}
+                  className={cn(
+                    "px-2 py-0.5 rounded cursor-pointer transition-colors font-medium",
+                    deptSort === "minutes"
+                      ? "bg-surface text-foreground shadow-2xs"
+                      : "hover:text-foreground"
+                  )}
+                >
+                  Heures
+                </button>
+              </div>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Volume des pointages et décomposition des statuts par pôle d&apos;activité.
+              Analyse de l&apos;assiduité et des volumes de travail par pôle d&apos;activité.
             </p>
           </div>
 
-          <div className="my-4 space-y-4 max-h-[380px] overflow-y-auto pr-1">
-            {stats.deptsList.map((d) => {
+          {/* Barres comparatives très claires */}
+          <div className="my-4 space-y-3 max-h-[380px] overflow-y-auto pr-1">
+            {sortedDepts.map((d) => {
               const presentPct = d.total > 0 ? (d.present / d.total) * 100 : 0;
               const anomaliePct = d.total > 0 ? (d.anomalie / d.total) * 100 : 0;
               const absentPct = d.total > 0 ? (d.absent / d.total) * 100 : 0;
-              const relativeWidth = (d.total / maxDeptCount) * 100;
 
               return (
                 <div
                   key={d.name}
-                  onClick={() => setSelectedDept(selectedDept === d.name ? null : d.name)}
-                  className={cn(
-                    "p-2.5 rounded-lg border transition-all cursor-pointer",
-                    selectedDept === d.name
-                      ? "border-primary bg-primary/5 shadow-xs"
-                      : "border-border/60 hover:bg-muted/40"
-                  )}
+                  className="p-3 rounded-lg border border-border/70 bg-surface hover:border-primary/40 transition-colors shadow-2xs"
                 >
-                  <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center justify-between text-xs mb-2">
                     <div className="flex items-center gap-2 truncate">
                       <span className="font-semibold text-foreground truncate">{d.name}</span>
-                      <span className="text-muted-foreground">({d.employeeCount} employés)</span>
+                      <span className="text-muted-foreground text-[11px]">
+                        ({d.employeeCount} employés · {d.total} fiches)
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-muted-foreground tabular-nums">
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className="text-muted-foreground font-medium tabular-nums">
                         {formatDurationLong(d.minutes, "0h")}
                       </span>
                       <span
                         className={cn(
-                          "px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums",
+                          "px-2 py-0.5 rounded-full text-xs font-bold tabular-nums",
                           d.rate >= 90
                             ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                             : d.rate >= 75
@@ -486,53 +677,52 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
                     </div>
                   </div>
 
-                  {/* Barre empilée */}
-                  <div className="flex items-center gap-2">
-                    <div className="relative h-3 w-full rounded-md bg-muted overflow-hidden flex">
-                      {presentPct > 0 && (
-                        <div
-                          title={`Présent : ${d.present}`}
-                          className="h-full bg-emerald-500 transition-all duration-300"
-                          style={{ width: `${presentPct}%` }}
-                        />
-                      )}
-                      {anomaliePct > 0 && (
-                        <div
-                          title={`Anomalie : ${d.anomalie}`}
-                          className="h-full bg-amber-500 transition-all duration-300"
-                          style={{ width: `${anomaliePct}%` }}
-                        />
-                      )}
-                      {absentPct > 0 && (
-                        <div
-                          title={`Absent : ${d.absent}`}
-                          className="h-full bg-red-500 transition-all duration-300"
-                          style={{ width: `${absentPct}%` }}
-                        />
-                      )}
-                    </div>
-                    <span className="text-xs font-semibold tabular-nums text-muted-foreground min-w-[28px] text-right">
-                      {d.total}
-                    </span>
+                  {/* Barre segmentée avec contrastes élevés */}
+                  <div className="h-3.5 w-full rounded-md bg-muted overflow-hidden flex shadow-inner">
+                    {presentPct > 0 && (
+                      <div
+                        title={`Présent : ${d.present}`}
+                        className="h-full bg-emerald-500 transition-all duration-300"
+                        style={{ width: `${presentPct}%` }}
+                      />
+                    )}
+                    {anomaliePct > 0 && (
+                      <div
+                        title={`Retard / Anomalie : ${d.anomalie}`}
+                        className="h-full bg-amber-500 transition-all duration-300"
+                        style={{ width: `${anomaliePct}%` }}
+                      />
+                    )}
+                    {absentPct > 0 && (
+                      <div
+                        title={`Absent : ${d.absent}`}
+                        className="h-full bg-red-500 transition-all duration-300"
+                        style={{ width: `${absentPct}%` }}
+                      />
+                    )}
                   </div>
 
-                  {/* Détails complémentaires si le département est sélectionné */}
-                  {selectedDept === d.name && (
-                    <div className="mt-2.5 pt-2 border-t border-border/50 grid grid-cols-4 gap-2 text-[11px] text-center">
-                      <div className="p-1.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium">
-                        {d.present} Présents
-                      </div>
-                      <div className="p-1.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium">
-                        {d.anomalie} Anomalies
-                      </div>
-                      <div className="p-1.5 rounded bg-red-500/10 text-red-700 dark:text-red-400 font-medium">
-                        {d.absent} Absents
-                      </div>
-                      <div className="p-1.5 rounded bg-muted text-muted-foreground font-medium">
-                        {d.sansHoraire} Sans horaire
-                      </div>
+                  {/* Détail chiffré immédiatement lisible sous chaque barre */}
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+                        ✓ {d.present} présents
+                      </span>
+                      {d.anomalie > 0 && (
+                        <span className="text-amber-700 dark:text-amber-400 font-medium">
+                          ⚠ {d.anomalie} retards
+                        </span>
+                      )}
+                      {d.absent > 0 && (
+                        <span className="text-red-700 dark:text-red-400 font-medium">
+                          ✕ {d.absent} absents
+                        </span>
+                      )}
                     </div>
-                  )}
+                    <span className="font-medium text-foreground">
+                      Ponctualité : {d.ponctualRate}%
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -541,54 +731,50 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
           <div className="flex items-center justify-between pt-2 border-t text-xs text-muted-foreground">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-emerald-500" /> Présent
+                <span className="size-2.5 rounded-full bg-emerald-500" /> Présent
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-amber-500" /> Retard/Anomalie
+                <span className="size-2.5 rounded-full bg-amber-500" /> Retard / Anomalie
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-red-500" /> Absent
+                <span className="size-2.5 rounded-full bg-red-500" /> Absent
               </span>
             </div>
-            <span>Cliquez sur un département pour le détail</span>
+            <span>{sortedDepts.length} département(s) affiché(s)</span>
           </div>
         </Card>
       </div>
 
-      {/* 3. GRAPHE 3 : Évolution Quotidienne des Pointages (Colonnes verticales par jour) */}
+      {/* 4. GRAPHIQUE 3 : Évolution Quotidienne (Jour par Jour) */}
       <Card className="p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="text-base font-semibold tracking-tight flex items-center gap-2">
+            <h3 className="text-sm font-semibold tracking-tight flex items-center gap-2">
               <Calendar className="size-4 text-primary" />
-              Évolution Journalière des Présences
-            </h2>
+              Évolution Quotidienne des Pointages
+            </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Pointages enregistrés par jour sur la période sélectionnée.
+              Volume des présences enregistrées chaque jour sur la période sélectionnée.
             </p>
           </div>
+
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
               <span className="size-2.5 rounded-full bg-emerald-500" /> Présents
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-amber-500" /> Anomalies
+            <span className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
+              <span className="size-2.5 rounded-full bg-amber-500" /> Retards / Anomalies
             </span>
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center gap-1.5 font-medium text-red-700 dark:text-red-400">
               <span className="size-2.5 rounded-full bg-red-500" /> Absents
             </span>
           </div>
         </div>
 
         <div className="mt-6 pt-4 pb-2">
-          <div className="flex items-end justify-between gap-3 h-44 border-b border-border/80 px-2">
+          <div className="flex items-end justify-between gap-2 sm:gap-4 h-48 border-b border-border/80 px-2 sm:px-4">
             {stats.daysList.map((day) => {
-              const presentHeight = (day.present / maxDayCount) * 100;
-              const anomalieHeight = (day.anomalie / maxDayCount) * 100;
-              const absentHeight = (day.absent / maxDayCount) * 100;
-              const totalHeight = ((day.present + day.anomalie + day.absent) / maxDayCount) * 100;
-
-              // Format date court (ex: "24/10")
+              const totalHeight = (day.total / maxDayCount) * 100;
               const parts = day.jour.split("-");
               const shortDate = parts.length === 3 ? `${parts[2]}/${parts[1]}` : day.jour;
 
@@ -597,43 +783,125 @@ export function AttendanceStats({ rows, from, to }: AttendanceStatsProps) {
                   key={day.jour}
                   className="flex-1 flex flex-col items-center justify-end h-full group relative"
                 >
-                  {/* Infobulle au survol */}
-                  <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-foreground text-background text-[11px] rounded px-2 py-1 pointer-events-none shadow-md z-10 whitespace-nowrap text-center">
-                    <p className="font-semibold">{day.jour}</p>
-                    <p>
-                      {day.present} prés. | {day.anomalie} anom. | {day.absent} abs.
+                  {/* Tooltip complet au survol */}
+                  <div className="absolute -top-14 opacity-0 group-hover:opacity-100 transition-opacity bg-foreground text-background text-xs rounded-md px-2.5 py-1.5 pointer-events-none shadow-lg z-20 whitespace-nowrap text-center">
+                    <p className="font-bold">{day.jour}</p>
+                    <p className="text-[11px]">
+                      {day.present} prés. · {day.anomalie} retards · {day.absent} abs.
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Total : {day.total} pointages ({formatDurationLong(day.minutes, "0h")})
                     </p>
                   </div>
 
-                  {/* Nombre total au-dessus de la colonne */}
-                  <span className="text-[11px] font-semibold tabular-nums text-muted-foreground mb-1 group-hover:text-primary transition-colors">
+                  {/* Chiffre total au-dessus de la barre */}
+                  <span className="text-xs font-bold tabular-nums text-foreground mb-1.5 group-hover:text-primary transition-colors">
                     {day.total}
                   </span>
 
-                  {/* Barre empilée verticale */}
-                  <div className="w-full max-w-[42px] rounded-t-md bg-muted overflow-hidden flex flex-col-reverse transition-all group-hover:scale-105 duration-200" style={{ height: `${Math.max(totalHeight, 8)}%` }}>
+                  {/* Barre empilée verticale avec coins arrondis */}
+                  <div
+                    className="w-full max-w-[48px] rounded-t-lg bg-muted overflow-hidden flex flex-col-reverse shadow-2xs transition-transform duration-200 group-hover:scale-105"
+                    style={{ height: `${Math.max(totalHeight, 10)}%` }}
+                  >
                     <div
+                      title={`Présents : ${day.present}`}
                       className="bg-emerald-500 transition-all duration-300"
                       style={{ height: `${(day.present / Math.max(day.total, 1)) * 100}%` }}
                     />
                     <div
+                      title={`Anomalies : ${day.anomalie}`}
                       className="bg-amber-500 transition-all duration-300"
                       style={{ height: `${(day.anomalie / Math.max(day.total, 1)) * 100}%` }}
                     />
                     <div
+                      title={`Absents : ${day.absent}`}
                       className="bg-red-500 transition-all duration-300"
                       style={{ height: `${(day.absent / Math.max(day.total, 1)) * 100}%` }}
                     />
                   </div>
 
-                  {/* Libellé date sous l'axe X */}
-                  <span className="mt-2 text-[11px] font-medium text-muted-foreground tabular-nums group-hover:text-foreground">
+                  {/* Date en bas */}
+                  <span className="mt-2 text-xs font-medium text-muted-foreground tabular-nums group-hover:text-foreground">
                     {shortDate}
                   </span>
                 </div>
               );
             })}
           </div>
+        </div>
+      </Card>
+
+      {/* 5. Tableau Synthétique d'Analyse (Directement Lisible et Exportable) */}
+      <Card className="overflow-hidden">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold tracking-tight">
+              Tableau Synthétique par Département
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Indicateurs consolidés pour une analyse managériale rapide.
+            </p>
+          </div>
+          <span className="text-xs text-muted-foreground font-mono">
+            {sortedDepts.length} départements
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-xs sm:text-sm">
+            <thead className="bg-muted text-xs text-muted-foreground font-medium">
+              <tr>
+                <th className="px-3 py-2.5">Département</th>
+                <th className="px-3 py-2.5 text-center">Effectif</th>
+                <th className="px-3 py-2.5 text-center">Présents</th>
+                <th className="px-3 py-2.5 text-center">Retards / Anomalies</th>
+                <th className="px-3 py-2.5 text-center">Absents</th>
+                <th className="px-3 py-2.5 text-center">Taux Assiduité</th>
+                <th className="px-3 py-2.5 text-center">Ponctualité</th>
+                <th className="px-3 py-2.5 text-right">Heures Totales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedDepts.map((d) => (
+                <tr key={d.name} className="border-t border-border hover:bg-muted/40">
+                  <td className="px-3 py-2.5 font-semibold text-foreground">{d.name}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-muted-foreground">
+                    {d.employeeCount}
+                  </td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-emerald-700 dark:text-emerald-400 font-semibold">
+                    {d.present}
+                  </td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-amber-700 dark:text-amber-400 font-semibold">
+                    {d.anomalie}
+                  </td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-red-700 dark:text-red-400 font-semibold">
+                    {d.absent}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span
+                      className={cn(
+                        "inline-flex px-2 py-0.5 rounded-full text-xs font-bold tabular-nums",
+                        d.rate >= 90
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                          : d.rate >= 75
+                          ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                          : "bg-red-500/10 text-red-700 dark:text-red-400"
+                      )}
+                    >
+                      {d.rate}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-muted-foreground font-medium">
+                    {d.ponctualRate}%
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-foreground">
+                    {formatDurationLong(d.minutes, "0h 00m")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
     </div>
