@@ -48,45 +48,67 @@ const columns: ColumnDef<PresenceRow>[] = [
   {
     accessorKey: "empCode",
     header: "ID",
-    cell: (c) => <span className="font-mono text-xs">{c.getValue<string>()}</span>,
+    cell: (c) => <span className="font-mono text-xs text-muted-foreground">{c.getValue<string>()}</span>,
   },
-  { accessorKey: "lastName", header: "Nom" },
-  { accessorKey: "firstName", header: "Prénom" },
-  { accessorKey: "deptName", header: "Prestation" },
+  {
+    accessorKey: "lastName",
+    header: "Nom",
+    cell: (c) => <span className="font-semibold text-foreground text-xs sm:text-sm">{c.getValue<string>()}</span>,
+  },
+  {
+    accessorKey: "firstName",
+    header: "Prénom",
+    cell: (c) => <span className="text-xs sm:text-sm">{c.getValue<string>()}</span>,
+  },
+  {
+    accessorKey: "deptName",
+    header: "Prestation",
+    cell: (c) => {
+      const val = c.getValue<string>() || "-";
+      return (
+        <span
+          className="block truncate max-w-[120px] lg:max-w-[150px] text-xs text-muted-foreground"
+          title={val}
+        >
+          {val}
+        </span>
+      );
+    },
+  },
   {
     accessorKey: "jour",
     header: "Date",
-    cell: (c) => <span className="tabular-nums">{formatDateFr(c.getValue<string>())}</span>,
+    cell: (c) => <span className="tabular-nums text-xs whitespace-nowrap">{formatDateFr(c.getValue<string>())}</span>,
   },
   {
     accessorKey: "premierPointage",
-    header: "1er pointage",
+    header: "1er ptg",
     sortUndefined: "last",
     cell: (c) => {
       const v = c.getValue<string | null>();
-      return v ? <span className="tabular-nums">{v}</span> : dash;
+      return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
     },
   },
   {
     accessorKey: "dernierPointage",
-    header: "Dernier pointage",
+    header: "Dernier ptg",
     sortUndefined: "last",
     cell: (c) => {
       const v = c.getValue<string | null>();
-      return v ? <span className="tabular-nums">{v}</span> : dash;
+      return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
     },
   },
   {
     accessorKey: "nbPointages",
-    header: "Nombre de pointages",
-    cell: (c) => <span className="tabular-nums">{c.getValue<number>()}</span>,
+    header: "Ptgs",
+    cell: (c) => <span className="tabular-nums text-xs text-center block font-medium">{c.getValue<number>()}</span>,
   },
   {
     accessorKey: "tempsPresenceMin",
-    header: "Temps de présence",
+    header: "Présence",
     cell: (c) => {
       const v = formatDurationLong(c.getValue<number>());
-      return v === "-" ? dash : <span className="tabular-nums">{v}</span>;
+      return v === "-" ? dash : <span className="tabular-nums text-xs font-medium whitespace-nowrap">{v}</span>;
     },
   },
   {
@@ -98,7 +120,7 @@ const columns: ColumnDef<PresenceRow>[] = [
       if (label === "-") return dash;
       const style = TON_STYLES[getStatutTon(statut)];
       return (
-        <span className={cn("inline-flex items-center gap-2", style.text)}>
+        <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium", style.text)}>
           <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", style.dot)} />
           {label}
         </span>
