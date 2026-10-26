@@ -145,10 +145,10 @@ export function Sidebar({
         />
       )}
 
-      {/* Barre latérale (Sidebar) */}
+      {/* Barre latérale (Sidebar) fixe lors du défilement */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border bg-surface transition-all duration-300 ease-in-out md:static",
+          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border bg-surface transition-all duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:shrink-0",
           // État Mobile
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
           // Largeur Desktop (pliée ou dépliée)

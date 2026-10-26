@@ -29,7 +29,7 @@ async function LayoutContent({ children }: { children: React.ReactNode }) {
 function LayoutFallback({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
-      <div className="hidden md:flex w-68 border-r border-border bg-surface p-4 flex-col justify-between">
+      <div className="hidden md:flex w-68 border-r border-border bg-surface p-4 flex-col justify-between sticky top-0 h-screen shrink-0">
         <div className="h-8 w-36 rounded-md bg-muted animate-pulse" />
         <div className="space-y-3">
           <div className="h-9 rounded-md bg-muted animate-pulse" />
