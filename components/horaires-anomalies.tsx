@@ -20,10 +20,6 @@ import {
   LogIn,
   LogOut,
   Building,
-  CalendarClock,
-  Tablet,
-  MapPin,
-  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

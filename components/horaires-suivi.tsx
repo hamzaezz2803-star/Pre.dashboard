@@ -893,7 +893,7 @@ export function HorairesSuivi() {
               ) : (
                 <div className="p-4 rounded-lg bg-muted/20 border border-border text-center text-xs text-muted-foreground">
                   <AlertTriangle className="size-5 mx-auto mb-1 text-amber-500" />
-                  Aucun pointage physique n'a été enregistré pour cet agent sur cette journée.
+                  Aucun pointage physique n&apos;a été enregistré pour cet agent sur cette journée.
                 </div>
               )}
             </div>
