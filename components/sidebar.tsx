@@ -15,6 +15,9 @@ import {
   ShieldCheck,
   UserCheck,
   X,
+  Sliders,
+  CalendarClock,
+  AlertTriangle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -26,7 +29,7 @@ export interface SidebarUser {
   role: "super_admin" | "admin" | string;
 }
 
-interface NavItem {
+export interface NavItem {
   id: string;
   label: string;
   href: string;
@@ -36,46 +39,86 @@ interface NavItem {
   description?: string;
 }
 
+export interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
 /**
- * Configuration complète des éléments de navigation selon les rôles.
- * - Pointages : accessible à tous (super_admin et admin)
- * - Utilisateurs : strictement réservé au rôle super_admin
- * - Profil : accessible à tous
- * - Paramètres : accessible à tous
+ * Configuration complète de la navigation avec la section « Affectation horaire dynamique ».
  */
-export const NAV_ITEMS: NavItem[] = [
+export const NAV_SECTIONS: NavSection[] = [
   {
-    id: "pointages",
-    label: "Pointages",
-    href: "/",
-    icon: Clock,
-    allowedRoles: ["super_admin", "admin"],
-    description: "Présences et anomalies",
+    title: "Menu Principal",
+    items: [
+      {
+        id: "pointages",
+        label: "Pointages",
+        href: "/",
+        icon: Clock,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Pointages bruts et statistiques",
+      },
+      {
+        id: "utilisateurs",
+        label: "Utilisateurs",
+        href: "/admin/utilisateurs",
+        icon: Users,
+        allowedRoles: ["super_admin"],
+        badge: "Super Admin",
+        description: "Gestion des comptes",
+      },
+    ],
   },
   {
-    id: "utilisateurs",
-    label: "Utilisateurs",
-    href: "/admin/utilisateurs",
-    icon: Users,
-    allowedRoles: ["super_admin"],
-    badge: "Super Admin",
-    description: "Gestion des comptes",
+    title: "Affectation horaire dynamique",
+    items: [
+      {
+        id: "horaires-parametrage",
+        label: "Paramétrage des horaires",
+        href: "/affectation-horaire/parametrage",
+        icon: Sliders,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Saisie des plages horaires",
+      },
+      {
+        id: "horaires-suivi",
+        label: "Suivi des présences",
+        href: "/affectation-horaire/suivi",
+        icon: CalendarClock,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Présences et affectation automatique",
+      },
+      {
+        id: "horaires-anomalies",
+        label: "Anomalies de pointage",
+        href: "/affectation-horaire/anomalies",
+        icon: AlertTriangle,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Retards, absences, sorties manquantes",
+      },
+    ],
   },
   {
-    id: "profil",
-    label: "Profil",
-    href: "/profil",
-    icon: User,
-    allowedRoles: ["super_admin", "admin"],
-    description: "Informations personnelles",
-  },
-  {
-    id: "parametres",
-    label: "Paramètres",
-    href: "/parametres",
-    icon: Settings,
-    allowedRoles: ["super_admin", "admin"],
-    description: "Préférences système",
+    title: "Compte & Préférences",
+    items: [
+      {
+        id: "profil",
+        label: "Profil",
+        href: "/profil",
+        icon: User,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Informations personnelles",
+      },
+      {
+        id: "parametres",
+        label: "Paramètres",
+        href: "/parametres",
+        icon: Settings,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Préférences et synchronisation",
+      },
+    ],
   },
 ];
 
