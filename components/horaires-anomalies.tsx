@@ -287,51 +287,12 @@ export function HorairesAnomalies() {
     }
   };
 
-  // Export Excel
+  // Export Excel haute définition
   const handleExportExcel = async () => {
     setExporting(true);
     try {
-      const ExcelJS = (await import("exceljs")).default;
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("Anomalies de pointage");
-
-      ws.columns = [
-        { header: "Matricule", key: "empCode", width: 12 },
-        { header: "Nom et Prénom", key: "nomComplet", width: 25 },
-        { header: "Département", key: "deptName", width: 22 },
-        { header: "Date Service", key: "dateService", width: 14 },
-        { header: "Type Anomalie", key: "anomalie", width: 24 },
-        { header: "Criticité", key: "gravite", width: 14 },
-        { header: "Explication", key: "explication", width: 35 },
-        { header: "Action Recommandée", key: "action", width: 35 },
-      ];
-
-      ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-      ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB42318" } };
-
-      filteredAnomalies.forEach((a) => {
-        ws.addRow({
-          empCode: a.empCode,
-          nomComplet: a.nomComplet,
-          deptName: a.deptName,
-          dateService: formatDateFr(a.dateService),
-          anomalie: a.libelleAnomalie,
-          gravite: a.gravite.toUpperCase(),
-          explication: a.explication,
-          action: a.actionRecommandee,
-        });
-      });
-
-      const buffer = await wb.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `anomalies_pointages_${debut}_${fin}.xlsx`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const { exportHorairesAnomaliesToExcel } = await import("@/lib/export-horaires");
+      await exportHorairesAnomaliesToExcel(filteredAnomalies, stats, debut, fin);
     } catch (e) {
       console.error("Export Excel error", e);
     } finally {
@@ -339,39 +300,12 @@ export function HorairesAnomalies() {
     }
   };
 
-  // Export PDF
+  // Export PDF paysage haute définition
   const handleExportPdf = async () => {
     setExporting(true);
     try {
-      const { jsPDF } = await import("jspdf");
-      const autoTable = (await import("jspdf-autotable")).default;
-
-      const doc = new jsPDF({ orientation: "landscape" });
-      doc.setFontSize(14);
-      doc.text("OCP Phosboucraâ - Rapport des anomalies de pointage", 14, 15);
-      doc.setFontSize(9);
-      doc.text(`Période : ${formatDateFr(debut)} au ${formatDateFr(fin)} | Total : ${filteredAnomalies.length} anomalies détectées`, 14, 21);
-
-      const tableData = filteredAnomalies.map((a) => [
-        String(a.empCode),
-        a.nomComplet,
-        a.deptName,
-        formatDateFr(a.dateService),
-        a.libelleAnomalie,
-        a.gravite.toUpperCase(),
-        a.explication,
-        a.actionRecommandee,
-      ]);
-
-      autoTable(doc, {
-        startY: 26,
-        head: [["ID", "Personnel", "Département", "Date", "Anomalie", "Gravité", "Explication", "Action Recommandée"]],
-        body: tableData,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [180, 35, 24], textColor: [255, 255, 255], fontStyle: "bold" },
-      });
-
-      doc.save(`rapport_anomalies_${debut}_${fin}.pdf`);
+      const { exportHorairesAnomaliesToPdf } = await import("@/lib/export-horaires");
+      await exportHorairesAnomaliesToPdf(filteredAnomalies, stats, debut, fin);
     } catch (e) {
       console.error("Export PDF error", e);
     } finally {

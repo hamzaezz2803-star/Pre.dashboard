@@ -216,54 +216,12 @@ export function HorairesSuivi() {
     }
   };
 
-  // Export Excel
+  // Export Excel haute définition
   const handleExportExcel = async () => {
     setExporting(true);
     try {
-      const ExcelJS = (await import("exceljs")).default;
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("Suivi Présences Horaires");
-
-      ws.columns = [
-        { header: "Matricule", key: "empCode", width: 12 },
-        { header: "Nom et Prénom", key: "nomComplet", width: 25 },
-        { header: "Département", key: "deptName", width: 22 },
-        { header: "Date Service", key: "dateService", width: 14 },
-        { header: "Horaire Affecté", key: "horaire", width: 18 },
-        { header: "Entrée", key: "entree", width: 14 },
-        { header: "Sortie", key: "sortie", width: 18 },
-        { header: "Durée Présence", key: "duree", width: 15 },
-        { header: "Statut", key: "statut", width: 18 },
-      ];
-
-      // Style d'en-tête
-      ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-      ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F6B4F" } };
-
-      rows.forEach((r) => {
-        ws.addRow({
-          empCode: r.empCode,
-          nomComplet: r.nomComplet,
-          deptName: r.deptName,
-          dateService: formatDateFr(r.dateService),
-          horaire: r.horaire?.libelle || "Non défini",
-          entree: r.heureEntree || "-",
-          sortie: r.heureSortie ? `${r.heureSortie}${r.dateSortie !== r.dateService ? " (+1)" : ""}` : "-",
-          duree: formatDurationLong(r.dureeMinutes),
-          statut: r.statut,
-        });
-      });
-
-      const buffer = await wb.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `suivi_presences_horaires_${debut}_${fin}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const { exportHorairesSuiviToExcel } = await import("@/lib/export-horaires");
+      await exportHorairesSuiviToExcel(rows, stats, debut, fin);
     } catch (e) {
       console.error("Export Excel error", e);
     } finally {
@@ -271,40 +229,12 @@ export function HorairesSuivi() {
     }
   };
 
-  // Export PDF
+  // Export PDF paysage haute définition
   const handleExportPdf = async () => {
     setExporting(true);
     try {
-      const { jsPDF } = await import("jspdf");
-      const autoTable = (await import("jspdf-autotable")).default;
-
-      const doc = new jsPDF({ orientation: "landscape" });
-      doc.setFontSize(14);
-      doc.text("OCP Phosboucraâ - Suivi des présences et affectation horaire", 14, 15);
-      doc.setFontSize(9);
-      doc.text(`Période : ${formatDateFr(debut)} au ${formatDateFr(fin)} | Total : ${rows.length} enregistrements`, 14, 21);
-
-      const tableData = rows.map((r) => [
-        String(r.empCode),
-        r.nomComplet,
-        r.deptName,
-        formatDateFr(r.dateService),
-        r.horaire?.libelle || "Non défini",
-        r.heureEntree || "-",
-        r.heureSortie ? `${r.heureSortie}${r.dateSortie !== r.dateService ? " (+1)" : ""}` : "-",
-        formatDurationLong(r.dureeMinutes),
-        r.statut,
-      ]);
-
-      autoTable(doc, {
-        startY: 26,
-        head: [["ID", "Personnel", "Département", "Date", "Horaire", "Entrée", "Sortie", "Présence", "Statut"]],
-        body: tableData,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [15, 107, 79], textColor: [255, 255, 255], fontStyle: "bold" },
-      });
-
-      doc.save(`suivi_presences_horaires_${debut}_${fin}.pdf`);
+      const { exportHorairesSuiviToPdf } = await import("@/lib/export-horaires");
+      await exportHorairesSuiviToPdf(rows, stats, debut, fin);
     } catch (e) {
       console.error("Export PDF error", e);
     } finally {
