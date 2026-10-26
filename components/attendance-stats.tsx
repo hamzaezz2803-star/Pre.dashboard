@@ -125,29 +125,44 @@ export function AttendanceStats({
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
 
+  const fetchConnectedUsers = useCallback(async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await fetch("/api/admin/connected-users");
+      if (res.ok) {
+        const data = await res.json();
+        setUsersData(data);
+      }
+    } catch {
+      // Échec silencieux
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let mounted = true;
-    const fetchUsers = async () => {
-      try {
-        const res = await fetch("/api/admin/connected-users");
-        if (res.ok && mounted) {
-          const data = await res.json();
+    let active = true;
+    fetch("/api/admin/connected-users")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data) {
           setUsersData(data);
         }
-      } catch {
-        // Échec silencieux
-      } finally {
-        if (mounted) setLoadingUsers(false);
-      }
-    };
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoadingUsers(false);
+      });
 
-    fetchUsers();
-    const timer = setInterval(fetchUsers, 20000);
+    const timer = setInterval(() => {
+      void fetchConnectedUsers();
+    }, 20000);
+
     return () => {
-      mounted = false;
+      active = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [fetchConnectedUsers]);
 
   const hasRestrictedFilter =
     (activeDept && activeDept !== "all") || (activeStatut && activeStatut !== "all");
