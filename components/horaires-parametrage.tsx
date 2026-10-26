@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   RotateCcw,
   Sliders,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -67,8 +66,25 @@ export function HorairesParametrage() {
   }, []);
 
   useEffect(() => {
-    chargerHoraires();
-  }, [chargerHoraires]);
+    let active = true;
+    fetch("/api/horaires")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data) {
+          setHoraires(data.horaires || []);
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Erreur inattendue");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Détection automatique si l'horaire traverse minuit
   const estNuitDetecte = (() => {

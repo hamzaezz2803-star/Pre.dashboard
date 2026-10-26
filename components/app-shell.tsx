@@ -22,6 +22,9 @@ export function AppShell({ user, children }: AppShellProps) {
   const getPageTitle = () => {
     if (pathname === "/") return "Pointages du personnel";
     if (pathname.startsWith("/admin/utilisateurs")) return "Gestion des utilisateurs";
+    if (pathname.startsWith("/affectation-horaire/parametrage")) return "Paramétrage des horaires";
+    if (pathname.startsWith("/affectation-horaire/suivi")) return "Suivi des présences";
+    if (pathname.startsWith("/affectation-horaire/anomalies")) return "Anomalies de pointage";
     if (pathname.startsWith("/profil")) return "Mon Profil";
     if (pathname.startsWith("/parametres")) return "Paramètres";
     if (pathname.startsWith("/conditions")) return "Conditions d'utilisation";

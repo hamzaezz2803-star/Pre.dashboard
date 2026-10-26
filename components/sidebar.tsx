@@ -143,11 +143,6 @@ export function Sidebar({
 
   const isSuperAdmin = user.role === "super_admin";
 
-  // Filtrage strict selon le rôle de l'utilisateur connecté
-  const visibleNavItems = NAV_ITEMS.filter((item) =>
-    item.allowedRoles.includes(user.role)
-  );
-
   async function handleLogout() {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
