@@ -707,21 +707,34 @@ export function HorairesSuivi() {
                 <p className="text-xs text-muted-foreground text-center py-6">Chargement des détails...</p>
               ) : (
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2 rounded bg-surface border border-border">
-                    <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
-                      <LogIn className="size-3.5" /> Entrée de service ({formatDateFr(selectedRow.dateEntree)})
-                    </span>
-                    <span className="font-mono font-bold">{selectedRow.heureEntree || "-"}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded bg-surface border border-border">
-                    <span className="flex items-center gap-1.5 font-medium text-red-600 dark:text-red-400">
-                      <LogOut className="size-3.5" /> Sortie de service ({formatDateFr(selectedRow.dateSortie)})
-                    </span>
-                    <span className="font-mono font-bold">
-                      {selectedRow.heureSortie || "-"}
-                      {selectedRow.isNightShift && " (+1)"}
-                    </span>
-                  </div>
+                  {timelineEvents.length > 0 ? (
+                    (timelineEvents as Array<{ time?: string; type?: string; terminal?: string }>).map((ev, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded bg-surface border border-border">
+                        <span className="flex items-center gap-1.5 font-medium text-foreground">
+                          <LogIn className="size-3.5 text-primary" /> {ev.terminal || `Pointage ${i + 1}`}
+                        </span>
+                        <span className="font-mono font-bold">{ev.time?.slice(0, 5) || "-"}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between p-2 rounded bg-surface border border-border">
+                        <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                          <LogIn className="size-3.5" /> Entrée de service ({formatDateFr(selectedRow.dateEntree)})
+                        </span>
+                        <span className="font-mono font-bold">{selectedRow.heureEntree || "-"}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded bg-surface border border-border">
+                        <span className="flex items-center gap-1.5 font-medium text-red-600 dark:text-red-400">
+                          <LogOut className="size-3.5" /> Sortie de service ({formatDateFr(selectedRow.dateSortie)})
+                        </span>
+                        <span className="font-mono font-bold">
+                          {selectedRow.heureSortie || "-"}
+                          {selectedRow.isNightShift && " (+1)"}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

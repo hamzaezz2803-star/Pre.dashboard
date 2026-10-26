@@ -72,29 +72,66 @@ export async function GET(request) {
           ROUND(EXTRACT(EPOCH FROM (MAX(dt) - MIN(dt))) / 60)::int AS delta_min
         FROM t
         GROUP BY pin, dt::date
+      ),
+      absents AS (
+        SELECT
+          pers_person_pin::text AS emp_code,
+          pers_person_last_name AS last_name,
+          pers_person_name AS first_name,
+          auth_dept_name AS dept_name,
+          att_date::date AS jour,
+          NULL::text AS premier_pointage,
+          NULL::text AS dernier_pointage,
+          0::bigint AS nb_pointages,
+          0::int AS temps_presence_min,
+          'absent'::text AS statut_presence
+        FROM att_record
+        WHERE attendance_status = 'absent'
+      ),
+      presents AS (
+        SELECT
+          v.emp_code,
+          COALESCE(v.last_name, n.last_name) AS last_name,
+          COALESCE(v.first_name, n.first_name) AS first_name,
+          COALESCE(v.dept_name, n.dept_name) AS dept_name,
+          v.jour,
+          COALESCE(v.premier_pointage, t_agg.min_time) AS premier_pointage,
+          COALESCE(v.dernier_pointage, t_agg.max_time) AS dernier_pointage,
+          COALESCE(v.nb_pointages, t_agg.nb, 0) AS nb_pointages,
+          COALESCE(v.temps_presence_min, CASE WHEN t_agg.nb > 1 THEN t_agg.delta_min ELSE 0 END) AS temps_presence_min,
+          v.statut_presence
+        FROM v_presence_jour v
+        LEFT JOIN t_agg ON t_agg.pin = v.emp_code::text AND t_agg.j = v.jour
+        LEFT JOIN LATERAL (
+          SELECT last_name, first_name, dept_name
+          FROM v_presence_jour x
+          WHERE x.emp_code = v.emp_code AND (x.last_name IS NOT NULL OR x.dept_name IS NOT NULL)
+          ORDER BY x.jour DESC
+          LIMIT 1
+        ) n ON TRUE
+      ),
+      unifie AS (
+        SELECT * FROM presents
+        UNION ALL
+        SELECT a.* FROM absents a
+        WHERE NOT EXISTS (
+          SELECT 1 FROM presents p WHERE p.emp_code = a.emp_code AND p.jour = a.jour
+        )
       )
       SELECT
-        v.emp_code,
-        COALESCE(v.last_name, n.last_name) AS last_name,
-        COALESCE(v.first_name, n.first_name) AS first_name,
-        COALESCE(v.dept_name, n.dept_name) AS dept_name,
-        TO_CHAR(v.jour, 'YYYY-MM-DD') AS jour,
-        COALESCE(v.premier_pointage, t_agg.min_time) AS premier_pointage,
-        COALESCE(v.dernier_pointage, t_agg.max_time) AS dernier_pointage,
-        COALESCE(v.nb_pointages, t_agg.nb, 0) AS nb_pointages,
-        COALESCE(v.temps_presence_min, CASE WHEN t_agg.nb > 1 THEN t_agg.delta_min ELSE 0 END) AS temps_presence_min,
-        v.statut_presence
-      FROM v_presence_jour v
-      LEFT JOIN t_agg ON t_agg.pin = v.emp_code::text AND t_agg.j = v.jour
-      LEFT JOIN LATERAL (
-        SELECT last_name, first_name, dept_name
-        FROM v_presence_jour x
-        WHERE x.emp_code = v.emp_code AND (x.last_name IS NOT NULL OR x.dept_name IS NOT NULL)
-        ORDER BY x.jour DESC
-        LIMIT 1
-      ) n ON TRUE
+        emp_code,
+        last_name,
+        first_name,
+        dept_name,
+        TO_CHAR(jour, 'YYYY-MM-DD') AS jour,
+        premier_pointage,
+        dernier_pointage,
+        nb_pointages,
+        temps_presence_min,
+        statut_presence
+      FROM unifie
       ${where}
-      ORDER BY v.jour DESC, v.emp_code ASC
+      ORDER BY jour DESC, emp_code ASC
       LIMIT 1000;
       `,
       params
