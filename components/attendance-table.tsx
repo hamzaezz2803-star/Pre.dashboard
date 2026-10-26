@@ -15,9 +15,15 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
   FileSpreadsheet,
   FileText,
+  History,
+  LogIn,
+  LogOut,
+  MapPin,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -44,90 +50,16 @@ const TON_STYLES: Record<StatutTon, { text: string; dot: string; legend: string 
   "sans-horaire": { text: "text-slate-500 dark:text-slate-400", dot: "bg-slate-400 dark:bg-slate-500", legend: "Pas d'horaire" },
 };
 
-const columns: ColumnDef<PresenceRow>[] = [
-  {
-    accessorKey: "empCode",
-    header: "ID",
-    cell: (c) => <span className="font-mono text-xs text-muted-foreground">{c.getValue<string>()}</span>,
-  },
-  {
-    accessorKey: "lastName",
-    header: "Nom",
-    cell: (c) => <span className="font-semibold text-foreground text-xs sm:text-sm">{c.getValue<string>()}</span>,
-  },
-  {
-    accessorKey: "firstName",
-    header: "Prénom",
-    cell: (c) => <span className="text-xs sm:text-sm">{c.getValue<string>()}</span>,
-  },
-  {
-    accessorKey: "deptName",
-    header: "Prestation",
-    cell: (c) => {
-      const val = c.getValue<string>() || "-";
-      return (
-        <span
-          className="block truncate max-w-[120px] lg:max-w-[150px] text-xs text-muted-foreground"
-          title={val}
-        >
-          {val}
-        </span>
-      );
-    },
-  },
-  {
-    accessorKey: "jour",
-    header: "Date",
-    cell: (c) => <span className="tabular-nums text-xs whitespace-nowrap">{formatDateFr(c.getValue<string>())}</span>,
-  },
-  {
-    accessorKey: "premierPointage",
-    header: "1er ptg",
-    sortUndefined: "last",
-    cell: (c) => {
-      const v = c.getValue<string | null>();
-      return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
-    },
-  },
-  {
-    accessorKey: "dernierPointage",
-    header: "Dernier ptg",
-    sortUndefined: "last",
-    cell: (c) => {
-      const v = c.getValue<string | null>();
-      return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
-    },
-  },
-  {
-    accessorKey: "nbPointages",
-    header: "Ptgs",
-    cell: (c) => <span className="tabular-nums text-xs text-center block font-medium">{c.getValue<number>()}</span>,
-  },
-  {
-    accessorKey: "tempsPresenceMin",
-    header: "Présence",
-    cell: (c) => {
-      const v = formatDurationLong(c.getValue<number>());
-      return v === "-" ? dash : <span className="tabular-nums text-xs font-medium whitespace-nowrap">{v}</span>;
-    },
-  },
-  {
-    accessorKey: "statutPresence",
-    header: "Statut",
-    cell: (c) => {
-      const statut = c.getValue<string | null>();
-      const label = formatStatut(statut, c.row.original.nbPointages);
-      if (label === "-") return dash;
-      const style = TON_STYLES[getStatutTon(statut)];
-      return (
-        <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium", style.text)}>
-          <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", style.dot)} />
-          {label}
-        </span>
-      );
-    },
-  },
-];
+interface PunchTimelineItem {
+  id: string;
+  heure: string;
+  attDatetime: string;
+  type: string;
+  label: string;
+  color: string;
+  lieu: string;
+  appareil: string;
+}
 
 export function AttendanceTable({
   rows,
@@ -146,7 +78,135 @@ export function AttendanceTable({
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [exporting, setExporting] = useState(false);
+  const [selectedTimelineRow, setSelectedTimelineRow] = useState<PresenceRow | null>(null);
+  const [timelineEvents, setTimelineEvents] = useState<PunchTimelineItem[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+
   const data = useMemo(() => rows, [rows]);
+
+  async function handleOpenTimeline(row: PresenceRow) {
+    setSelectedTimelineRow(row);
+    setLoadingTimeline(true);
+    setTimelineEvents([]);
+    try {
+      const res = await fetch(
+        `/api/presence/timeline?pin=${encodeURIComponent(row.empCode)}&date=${encodeURIComponent(row.jour)}`
+      );
+      if (res.ok) {
+        const d = await res.json();
+        setTimelineEvents(d.timeline || []);
+      }
+    } catch {
+      setTimelineEvents([]);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  }
+
+  const columns = useMemo<ColumnDef<PresenceRow>[]>(
+    () => [
+      {
+        accessorKey: "empCode",
+        header: "ID",
+        cell: (c) => <span className="font-mono text-xs text-muted-foreground">{c.getValue<string>()}</span>,
+      },
+      {
+        accessorKey: "lastName",
+        header: "Nom",
+        cell: (c) => <span className="font-semibold text-foreground text-xs sm:text-sm">{c.getValue<string>()}</span>,
+      },
+      {
+        accessorKey: "firstName",
+        header: "Prénom",
+        cell: (c) => <span className="text-xs sm:text-sm">{c.getValue<string>()}</span>,
+      },
+      {
+        accessorKey: "deptName",
+        header: "Prestation",
+        cell: (c) => {
+          const val = c.getValue<string>() || "-";
+          return (
+            <span
+              className="block truncate max-w-[120px] lg:max-w-[150px] text-xs text-muted-foreground"
+              title={val}
+            >
+              {val}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "jour",
+        header: "Date",
+        cell: (c) => <span className="tabular-nums text-xs whitespace-nowrap">{formatDateFr(c.getValue<string>())}</span>,
+      },
+      {
+        accessorKey: "premierPointage",
+        header: "1er ptg",
+        sortUndefined: "last",
+        cell: (c) => {
+          const v = c.getValue<string | null>();
+          return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
+        },
+      },
+      {
+        accessorKey: "dernierPointage",
+        header: "Dernier ptg",
+        sortUndefined: "last",
+        cell: (c) => {
+          const v = c.getValue<string | null>();
+          return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
+        },
+      },
+      {
+        accessorKey: "nbPointages",
+        header: "Ptgs",
+        cell: (c) => <span className="tabular-nums text-xs text-center block font-medium">{c.getValue<number>()}</span>,
+      },
+      {
+        accessorKey: "tempsPresenceMin",
+        header: "Présence",
+        cell: (c) => {
+          const v = formatDurationLong(c.getValue<number>());
+          return v === "-" ? dash : <span className="tabular-nums text-xs font-medium whitespace-nowrap">{v}</span>;
+        },
+      },
+      {
+        accessorKey: "statutPresence",
+        header: "Statut",
+        cell: (c) => {
+          const statut = c.getValue<string | null>();
+          const label = formatStatut(statut, c.row.original.nbPointages);
+          if (label === "-") return dash;
+          const style = TON_STYLES[getStatutTon(statut)];
+          return (
+            <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium", style.text)}>
+              <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", style.dot)} />
+              {label}
+            </span>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "Détails",
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenTimeline(row.original);
+            }}
+            className="p-1 rounded-md hover:bg-muted text-primary cursor-pointer transition-colors"
+            title="Voir la timeline (A entré / A sorti et détails)"
+          >
+            <History className="size-4" />
+          </button>
+        ),
+      },
+    ],
+    []
+  );
 
   const table = useReactTable({
     data,
@@ -176,140 +236,270 @@ export function AttendanceTable({
   const end = Math.min(total, (pageIndex + 1) * PAGE_SIZE);
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-3">
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-muted-foreground" aria-live="polite">
-            {total} {total > 1 ? "lignes" : "ligne"}
-          </p>
-          {refreshError && (
-            <span role="alert" className="text-xs text-danger font-medium">
-              {refreshError}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {onRefresh && (
+    <>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-3">
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+              {total} {total > 1 ? "lignes" : "ligne"}
+            </p>
+            {refreshError && (
+              <span role="alert" className="text-xs text-danger font-medium">
+                {refreshError}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {onRefresh && (
+              <Button
+                variant="outline"
+                onClick={onRefresh}
+                disabled={isRefreshing || exporting}
+                aria-label="Actualiser les pointages"
+              >
+                <RefreshCw className={cn("size-4 text-primary", isRefreshing && "animate-spin")} aria-hidden="true" />
+                <span>{isRefreshing ? "Mise à jour..." : "Actualiser"}</span>
+              </Button>
+            )}
             <Button
               variant="outline"
-              onClick={onRefresh}
-              disabled={isRefreshing || exporting}
-              aria-label="Actualiser les pointages"
+              onClick={() => handleExport("excel")}
+              disabled={exporting || isRefreshing || total === 0}
+              aria-label="Exporter vers Excel (.xlsx)"
             >
-              <RefreshCw className={cn("size-4 text-primary", isRefreshing && "animate-spin")} aria-hidden="true" />
-              <span>{isRefreshing ? "Mise à jour..." : "Actualiser"}</span>
+              <FileSpreadsheet className="size-4 text-emerald-600" aria-hidden="true" />
+              <span>Excel (.xlsx)</span>
             </Button>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => handleExport("excel")}
-            disabled={exporting || isRefreshing || total === 0}
-            aria-label="Exporter vers Excel (.xlsx)"
-          >
-            <FileSpreadsheet className="size-4 text-emerald-600" aria-hidden="true" />
-            <span>Excel (.xlsx)</span>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => handleExport("pdf")}
-            disabled={exporting || isRefreshing || total === 0}
-            aria-label="Exporter vers PDF (.pdf)"
-          >
-            <FileText className="size-4 text-red-600" aria-hidden="true" />
-            <span>PDF (.pdf)</span>
-          </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleExport("pdf")}
+              disabled={exporting || isRefreshing || total === 0}
+              aria-label="Exporter vers PDF (.pdf)"
+            >
+              <FileText className="size-4 text-red-600" aria-hidden="true" />
+              <span>PDF (.pdf)</span>
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-xs sm:text-sm">
-          <thead className="bg-muted text-xs text-muted-foreground">
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id}>
-                {hg.headers.map((h) => {
-                  const sorted = h.column.getIsSorted();
-                  return (
-                    <th
-                      key={h.id}
-                      scope="col"
-                      aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}
-                      className="whitespace-nowrap px-2 py-2 sm:px-2.5 font-medium"
-                    >
-                      <button
-                        type="button"
-                        onClick={h.column.getToggleSortingHandler()}
-                        className="inline-flex items-center gap-1 rounded-md hover:text-foreground"
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-xs sm:text-sm">
+            <thead className="bg-muted text-xs text-muted-foreground">
+              {table.getHeaderGroups().map((hg) => (
+                <tr key={hg.id}>
+                  {hg.headers.map((h) => {
+                    const sorted = h.column.getIsSorted();
+                    return (
+                      <th
+                        key={h.id}
+                        scope="col"
+                        aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}
+                        className="whitespace-nowrap px-2 py-2 sm:px-2.5 font-medium"
                       >
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                        {sorted === "asc" ? (
-                          <ArrowUp className="size-3.5" aria-hidden="true" />
-                        ) : sorted === "desc" ? (
-                          <ArrowDown className="size-3.5" aria-hidden="true" />
-                        ) : (
-                          <ArrowUpDown className="size-3.5 opacity-50" aria-hidden="true" />
-                        )}
-                      </button>
-                    </th>
-                  );
-                })}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-t border-border hover:bg-muted/50">
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-2 py-2 sm:px-2.5 sm:py-2.5 align-middle">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <ul
-        aria-label="Légende des statuts"
-        className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-3 py-2 text-xs"
-      >
-        {(Object.keys(TON_STYLES) as StatutTon[]).map((ton) => (
-          <li key={ton} className={cn("inline-flex items-center gap-1.5", TON_STYLES[ton].text)}>
-            <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", TON_STYLES[ton].dot)} />
-            {TON_STYLES[ton].legend}
-          </li>
-        ))}
-      </ul>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3 text-sm">
-        <p className="text-muted-foreground">
-          {start} à {end} sur {total}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Page précédente"
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-            Précédent
-          </Button>
-          <span className="tabular-nums text-muted-foreground">
-            Page {table.getPageCount() === 0 ? 0 : pageIndex + 1} / {table.getPageCount()}
-          </span>
-          <Button
-            variant="outline"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            aria-label="Page suivante"
-          >
-            Suivant
-            <ChevronRight className="size-4" aria-hidden="true" />
-          </Button>
+                        <button
+                          type="button"
+                          onClick={h.column.getToggleSortingHandler()}
+                          className="inline-flex items-center gap-1 rounded-md hover:text-foreground cursor-pointer"
+                        >
+                          {flexRender(h.column.columnDef.header, h.getContext())}
+                          {sorted === "asc" ? (
+                            <ArrowUp className="size-3.5" aria-hidden="true" />
+                          ) : sorted === "desc" ? (
+                            <ArrowDown className="size-3.5" aria-hidden="true" />
+                          ) : (
+                            <ArrowUpDown className="size-3.5 opacity-50" aria-hidden="true" />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.id}
+                  onClick={() => handleOpenTimeline(row.original)}
+                  className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-2 py-2 sm:px-2.5 sm:py-2.5 align-middle">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
-    </Card>
+
+        <ul
+          aria-label="Légende des statuts"
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-3 py-2 text-xs"
+        >
+          {(Object.keys(TON_STYLES) as StatutTon[]).map((ton) => (
+            <li key={ton} className={cn("inline-flex items-center gap-1.5", TON_STYLES[ton].text)}>
+              <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", TON_STYLES[ton].dot)} />
+              {TON_STYLES[ton].legend}
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3 text-sm">
+          <p className="text-muted-foreground">
+            {start} à {end} sur {total}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="Page précédente"
+            >
+              <ChevronLeft className="size-4" aria-hidden="true" />
+              Précédent
+            </Button>
+            <span className="tabular-nums text-muted-foreground">
+              Page {table.getPageCount() === 0 ? 0 : pageIndex + 1} / {table.getPageCount()}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              aria-label="Page suivante"
+            >
+              Suivant
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* MODALE DE TIMELINE DES POINTAGES DE L'EMPLOYÉ */}
+      {selectedTimelineRow && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in"
+        >
+          <Card className="w-full max-w-lg p-0 shadow-xl overflow-hidden animate-in zoom-in-95">
+            <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                  <History className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                    Timeline des Pointages
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedTimelineRow.lastName} {selectedTimelineRow.firstName} · {formatDateFr(selectedTimelineRow.jour)}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedTimelineRow(null)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Récapitulatif Entrée / Sortie / Présence */}
+            <div className="p-4 bg-muted/10 border-b border-border grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-2 rounded-lg bg-surface border border-border/60">
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold flex items-center justify-center gap-1">
+                  <LogIn className="size-3" /> A entré
+                </span>
+                <p className="mt-1 font-bold text-sm tabular-nums text-foreground">
+                  {selectedTimelineRow.premierPointage || "-"}
+                </p>
+              </div>
+
+              <div className="p-2 rounded-lg bg-surface border border-border/60">
+                <span className="text-[11px] text-red-700 dark:text-red-400 font-semibold flex items-center justify-center gap-1">
+                  <LogOut className="size-3" /> A sorti
+                </span>
+                <p className="mt-1 font-bold text-sm tabular-nums text-foreground">
+                  {selectedTimelineRow.dernierPointage || "-"}
+                </p>
+              </div>
+
+              <div className="p-2 rounded-lg bg-surface border border-border/60">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center justify-center gap-1">
+                  <Clock className="size-3" /> Présence
+                </span>
+                <p className="mt-1 font-bold text-sm tabular-nums text-foreground">
+                  {formatDurationLong(selectedTimelineRow.tempsPresenceMin, "0h 00m")}
+                </p>
+              </div>
+            </div>
+
+            {/* Liste chronologique détaillée des événements */}
+            <div className="p-4 max-h-72 overflow-y-auto space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Chronologie exacte des passages enregistrés :
+              </p>
+
+              {loadingTimeline ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  Chargement des pointages...
+                </div>
+              ) : timelineEvents.length > 0 ? (
+                <div className="relative pl-5 space-y-3 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
+                  {timelineEvents.map((evt, idx) => (
+                    <div key={evt.id || idx} className="relative flex items-start gap-2 text-xs">
+                      <span
+                        className={cn(
+                          "absolute -left-5 mt-1 size-2.5 rounded-full ring-4 ring-surface",
+                          evt.type === "entree" || evt.type === "pause_in"
+                            ? "bg-emerald-500"
+                            : "bg-red-500"
+                        )}
+                      />
+                      <div className="flex-1 bg-surface p-2.5 rounded-lg border border-border/60 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground flex items-center gap-1.5">
+                            {evt.type === "entree" ? (
+                              <LogIn className="size-3.5 text-emerald-600" />
+                            ) : (
+                              <LogOut className="size-3.5 text-red-600" />
+                            )}
+                            {evt.label}
+                          </span>
+                          <span className="font-mono font-bold text-xs tabular-nums text-foreground">
+                            {evt.heure}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <MapPin className="size-3" />
+                          <span>{evt.lieu}</span>
+                          <span>·</span>
+                          <span>{evt.appareil}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-surface border border-dashed border-border text-center text-xs text-muted-foreground">
+                  Aucun pointage physique détaillé trouvé dans la base pour ce jour.
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-border bg-muted/20 flex justify-end">
+              <Button variant="outline" onClick={() => setSelectedTimelineRow(null)} className="h-8 text-xs">
+                Fermer
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+    </>
   );
 }
 

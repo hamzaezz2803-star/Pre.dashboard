@@ -1,0 +1,87 @@
+import { NextResponse } from 'next/server';
+import { exigerRole } from '@/lib/auth';
+import { targetPool } from '@/lib/db';
+
+/**
+ * Route GET /api/presence/timeline?pin=&date=
+ * Retourne la chronologie exacte des pointages (Entrée, Sortie, Pauses) d'un employé pour un jour donné.
+ */
+export async function GET(request) {
+  const auth = await exigerRole('admin', 'super_admin');
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const pin = searchParams.get('pin')?.trim();
+    const date = searchParams.get('date')?.trim();
+
+    if (!pin || !date) {
+      return NextResponse.json(
+        { error: 'Les paramètres pin et date sont requis.' },
+        { status: 400 }
+      );
+    }
+
+    const { rows } = await targetPool.query(
+      `SELECT
+         id,
+         pers_person_pin AS pin,
+         pers_person_name AS prenom,
+         pers_person_last_name AS nom,
+         auth_dept_name AS departement,
+         to_char(att_datetime, 'HH24:MI:SS') AS heure,
+         to_char(att_datetime, 'YYYY-MM-DD') AS jour,
+         att_datetime,
+         att_state,
+         COALESCE(att_place, 'Badgeuse principale') AS lieu,
+         COALESCE(device_name, 'Terminal pointage') AS appareil
+       FROM att_transaction
+       WHERE pers_person_pin::text = $1 AND att_datetime::date = $2::date
+       ORDER BY att_datetime ASC;`,
+      [pin, date]
+    );
+
+    const STATE_LABELS = {
+      '0': { label: 'Pointage d\'Entrée', type: 'entree', color: 'emerald' },
+      '1': { label: 'Pointage de Sortie', type: 'sortie', color: 'red' },
+      '2': { label: 'Pause (Sortie)', type: 'pause_out', color: 'amber' },
+      '3': { label: 'Reprise (Entrée)', type: 'pause_in', color: 'emerald' },
+      '4': { label: 'Heures sup. Entrée', type: 'ot_in', color: 'indigo' },
+      '5': { label: 'Heures sup. Sortie', type: 'ot_out', color: 'indigo' },
+    };
+
+    const timeline = rows.map((r, idx) => {
+      const stateInfo = STATE_LABELS[String(r.att_state)] || {
+        label: idx === 0 ? 'Pointage d\'Entrée' : 'Pointage de Sortie',
+        type: idx === 0 ? 'entree' : 'sortie',
+        color: idx === 0 ? 'emerald' : 'red',
+      };
+
+      return {
+        id: r.id,
+        heure: r.heure,
+        attDatetime: r.att_datetime,
+        type: stateInfo.type,
+        label: stateInfo.label,
+        color: stateInfo.color,
+        lieu: r.lieu,
+        appareil: r.appareil,
+      };
+    });
+
+    return NextResponse.json({
+      pin,
+      date,
+      count: timeline.length,
+      timeline,
+    });
+  } catch (error) {
+    console.error('[API Presence Timeline] Erreur :', error?.message);
+    return NextResponse.json(
+      { error: 'Erreur lors de la récupération de la timeline des pointages.' },
+      { status: 500 }
+    );
+  }
+}

@@ -2,16 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertCircle,
   ArrowUpDown,
   Building2,
   Calendar,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Download,
   FileSpreadsheet,
   FileText,
   FilterX,
+  LogIn,
+  LogOut,
   PieChart as PieIcon,
   Printer,
   RefreshCw,
@@ -72,7 +77,16 @@ const STATUT_CONFIG: Record<
   },
 };
 
-interface ConnectedUser {
+export interface UserTimelineEvent {
+  type: "entree" | "activite" | "sortie" | "en_cours" | "hors_ligne";
+  title: string;
+  time: string;
+  timeFormatted: string;
+  detail: string;
+  state: "success" | "info" | "neutral" | "active";
+}
+
+export interface ConnectedUser {
   id: number;
   username: string;
   full_name: string | null;
@@ -80,10 +94,14 @@ interface ConnectedUser {
   active: boolean;
   isOnline: boolean;
   isCurrent: boolean;
+  loginTime: string | null;
+  logoutTime: string | null;
   lastSeen: string | null;
+  durationMinutes: number;
+  timeline: UserTimelineEvent[];
 }
 
-interface ConnectedUsersResponse {
+export interface ConnectedUsersResponse {
   connectedCount: number;
   totalUsers: number;
   users: ConnectedUser[];
@@ -105,6 +123,7 @@ export function AttendanceStats({
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
   const [usersData, setUsersData] = useState<ConnectedUsersResponse | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
 
   const fetchConnectedUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -987,66 +1006,160 @@ export function AttendanceStats({
               Chargement des utilisateurs connectés...
             </div>
           ) : usersData?.users && usersData.users.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {usersData.users.map((user) => (
-                <div
-                  key={user.id}
-                  className={cn(
-                    "p-3 rounded-lg border transition-all flex items-center justify-between gap-3 shadow-2xs",
-                    user.isOnline
-                      ? "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/50"
-                      : "border-border/60 bg-muted/20 hover:bg-muted/40"
-                  )}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative">
-                      <div className="size-9 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-xs text-primary shadow-xs">
-                        {user.username.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span
-                        className={cn(
-                          "absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-surface",
-                          user.isOnline ? "bg-emerald-500" : "bg-slate-400"
-                        )}
-                        title={user.isOnline ? "En ligne" : "Hors ligne"}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-xs text-foreground truncate">
-                          {user.full_name || user.username}
-                        </span>
-                        {user.isCurrent && (
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary text-primary-foreground">
-                            Vous
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        @{user.username} · {user.role === "super_admin" ? "Super Admin" : "Admin"}
-                      </p>
-                    </div>
-                  </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {usersData.users.map((user) => {
+                const isExpanded = expandedUserId === user.id;
+                const loginFormatted = user.loginTime
+                  ? new Date(user.loginTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+                  : "-";
+                const logoutFormatted = user.isOnline
+                  ? "En cours"
+                  : user.logoutTime
+                  ? new Date(user.logoutTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+                  : "Déconnecté";
 
-                  <div className="text-right shrink-0">
-                    {user.isOnline ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        En ligne
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
-                        Hors ligne
-                      </span>
+                return (
+                  <div
+                    key={user.id}
+                    className={cn(
+                      "rounded-xl border transition-all shadow-2xs overflow-hidden flex flex-col justify-between",
+                      user.isOnline
+                        ? "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/50"
+                        : "border-border/70 bg-surface hover:border-border"
                     )}
-                    {user.lastSeen && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {new Date(user.lastSeen).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    )}
+                  >
+                    <div className="p-3.5 space-y-3">
+                      {/* En-tête de la carte utilisateur */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="relative shrink-0">
+                            <div className="size-9 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-xs text-primary shadow-xs">
+                              {user.username.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span
+                              className={cn(
+                                "absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-surface",
+                                user.isOnline ? "bg-emerald-500" : "bg-slate-400"
+                              )}
+                              title={user.isOnline ? "En ligne" : "Hors ligne"}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-xs text-foreground truncate">
+                                {user.full_name || user.username}
+                              </span>
+                              {user.isCurrent && (
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary text-primary-foreground shrink-0">
+                                  Vous
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              @{user.username} · {user.role === "super_admin" ? "Super Admin" : "Admin"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          {user.isOnline ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              En ligne
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
+                              Hors ligne
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* BLOC TIMELINE SYNTHÉTIQUE (A entré / A sorti / Durée) */}
+                      <div className="p-2.5 rounded-lg bg-surface/80 border border-border/60 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
+                            <LogIn className="size-3.5 text-emerald-600" />
+                            A entré :
+                          </span>
+                          <span className="font-semibold tabular-nums text-foreground">
+                            {loginFormatted}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="flex items-center gap-1.5 font-medium text-red-700 dark:text-red-400">
+                            <LogOut className="size-3.5 text-red-500" />
+                            A sorti :
+                          </span>
+                          <span className={cn("font-semibold tabular-nums", user.isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                            {logoutFormatted}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/40">
+                          <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
+                            <Clock className="size-3.5" />
+                            Durée session :
+                          </span>
+                          <span className="font-semibold tabular-nums text-foreground">
+                            {user.isOnline ? `${user.durationMinutes} min` : "-"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* DÉTAIL DÉROULANT DE LA TIMELINE */}
+                      {isExpanded && user.timeline && user.timeline.length > 0 && (
+                        <div className="pt-2 border-t border-border/60 space-y-2 text-xs">
+                          <p className="font-semibold text-[11px] text-foreground flex items-center gap-1.5">
+                            <Activity className="size-3 text-primary" />
+                            Chronologie détaillée des accès
+                          </p>
+                          <div className="relative pl-4 space-y-2.5 before:absolute before:left-1.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
+                            {user.timeline.map((evt, idx) => (
+                              <div key={idx} className="relative flex items-start gap-2">
+                                <span
+                                  className={cn(
+                                    "absolute -left-4 mt-1 size-2 rounded-full ring-2 ring-surface",
+                                    evt.type === "entree"
+                                      ? "bg-emerald-500"
+                                      : evt.type === "sortie"
+                                      ? "bg-red-500"
+                                      : evt.type === "activite"
+                                      ? "bg-blue-500"
+                                      : "bg-slate-400"
+                                  )}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-semibold text-foreground">{evt.title}</span>
+                                    <span className="tabular-nums font-mono text-muted-foreground text-[10px]">
+                                      {evt.timeFormatted}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    {evt.detail}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bouton pour déplier / replier les détails de la timeline */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedUserId(isExpanded ? null : user.id)}
+                      className="w-full py-1.5 px-3 border-t border-border/50 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/30 flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <span>{isExpanded ? "Masquer les détails" : "Voir timeline & détails"}</span>
+                      {isExpanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground py-2 text-center">
