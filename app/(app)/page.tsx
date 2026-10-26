@@ -16,7 +16,7 @@ export default function Home() {
   return (
     <Suspense
       fallback={
-        <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+        <main className="w-full space-y-5 px-3 py-5 sm:px-5 lg:px-6">
           <h1 className="text-2xl font-semibold tracking-tight">Pointages du personnel</h1>
           <SummaryCardsSkeleton />
           <AttendanceTableSkeleton />

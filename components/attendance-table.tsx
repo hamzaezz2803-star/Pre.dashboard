@@ -39,15 +39,78 @@ const PAGE_SIZE = 25;
 
 const dash = <span className="text-muted-foreground">-</span>;
 
-const TON_STYLES: Record<StatutTon, { text: string; dot: string; legend: string }> = {
-  present: { text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-600 dark:bg-emerald-500", legend: "Présent" },
+const TON_STYLES: Record<StatutTon, { text: string; dot: string; bg: string; legend: string }> = {
+  present: {
+    text: "text-emerald-700 dark:text-emerald-400",
+    dot: "bg-emerald-600 dark:bg-emerald-500",
+    bg: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
+    legend: "Présent",
+  },
   anomalie: {
     text: "text-amber-700 dark:text-amber-400",
     dot: "bg-amber-500",
+    bg: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
     legend: "Anomalie (retard, entrée ou sortie manquante)",
   },
-  absent: { text: "text-red-700 dark:text-red-400", dot: "bg-red-600 dark:bg-red-500", legend: "Absent" },
-  "sans-horaire": { text: "text-slate-500 dark:text-slate-400", dot: "bg-slate-400 dark:bg-slate-500", legend: "Pas d'horaire" },
+  absent: {
+    text: "text-red-700 dark:text-red-400",
+    dot: "bg-red-600 dark:bg-red-500",
+    bg: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20",
+    legend: "Absent",
+  },
+  "sans-horaire": {
+    text: "text-slate-500 dark:text-slate-400",
+    dot: "bg-slate-400 dark:bg-slate-500",
+    bg: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20",
+    legend: "Pas d'horaire",
+  },
+};
+
+const COLUMN_CLASSES: Record<string, { th: string; td: string }> = {
+  empCode: {
+    th: "w-[4%] min-w-[36px] text-left",
+    td: "w-[4%] min-w-[36px] text-left",
+  },
+  lastName: {
+    th: "w-[12%] min-w-[85px] text-left",
+    td: "w-[12%] min-w-[85px] text-left",
+  },
+  firstName: {
+    th: "w-[11%] min-w-[80px] text-left",
+    td: "w-[11%] min-w-[80px] text-left",
+  },
+  deptName: {
+    th: "w-[12%] min-w-[85px] text-left",
+    td: "w-[12%] min-w-[85px] text-left",
+  },
+  jour: {
+    th: "w-[8%] min-w-[75px] text-left",
+    td: "w-[8%] min-w-[75px] text-left",
+  },
+  premierPointage: {
+    th: "w-[7%] min-w-[55px] text-center",
+    td: "w-[7%] min-w-[55px] text-center",
+  },
+  dernierPointage: {
+    th: "w-[7%] min-w-[55px] text-center",
+    td: "w-[7%] min-w-[55px] text-center",
+  },
+  nbPointages: {
+    th: "w-[5%] min-w-[40px] text-center",
+    td: "w-[5%] min-w-[40px] text-center",
+  },
+  tempsPresenceMin: {
+    th: "w-[8%] min-w-[65px] text-center",
+    td: "w-[8%] min-w-[65px] text-center",
+  },
+  statutPresence: {
+    th: "w-[22%] min-w-[130px] text-left",
+    td: "w-[22%] min-w-[130px] text-left",
+  },
+  actions: {
+    th: "w-[4%] min-w-[36px] text-center",
+    td: "w-[4%] min-w-[36px] text-center",
+  },
 };
 
 interface PunchTimelineItem {
@@ -108,17 +171,29 @@ export function AttendanceTable({
       {
         accessorKey: "empCode",
         header: "ID",
-        cell: (c) => <span className="font-mono text-xs text-muted-foreground">{c.getValue<string>()}</span>,
+        cell: (c) => (
+          <span className="font-mono text-xs text-muted-foreground block truncate" title={c.getValue<string>()}>
+            {c.getValue<string>()}
+          </span>
+        ),
       },
       {
         accessorKey: "lastName",
         header: "Nom",
-        cell: (c) => <span className="font-semibold text-foreground text-xs sm:text-sm">{c.getValue<string>()}</span>,
+        cell: (c) => (
+          <span className="font-semibold text-foreground text-xs block truncate" title={c.getValue<string>()}>
+            {c.getValue<string>()}
+          </span>
+        ),
       },
       {
         accessorKey: "firstName",
         header: "Prénom",
-        cell: (c) => <span className="text-xs sm:text-sm">{c.getValue<string>()}</span>,
+        cell: (c) => (
+          <span className="text-xs text-foreground block truncate" title={c.getValue<string>()}>
+            {c.getValue<string>()}
+          </span>
+        ),
       },
       {
         accessorKey: "deptName",
@@ -127,7 +202,7 @@ export function AttendanceTable({
           const val = c.getValue<string>() || "-";
           return (
             <span
-              className="block truncate max-w-[120px] lg:max-w-[150px] text-xs text-muted-foreground"
+              className="block truncate text-xs text-muted-foreground"
               title={val}
             >
               {val}
@@ -138,7 +213,7 @@ export function AttendanceTable({
       {
         accessorKey: "jour",
         header: "Date",
-        cell: (c) => <span className="tabular-nums text-xs whitespace-nowrap">{formatDateFr(c.getValue<string>())}</span>,
+        cell: (c) => <span className="tabular-nums text-xs whitespace-nowrap block">{formatDateFr(c.getValue<string>())}</span>,
       },
       {
         accessorKey: "premierPointage",
@@ -146,7 +221,7 @@ export function AttendanceTable({
         sortUndefined: "last",
         cell: (c) => {
           const v = c.getValue<string | null>();
-          return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
+          return v ? <span className="tabular-nums text-xs font-mono block text-center">{v}</span> : <div className="text-center">{dash}</div>;
         },
       },
       {
@@ -155,7 +230,7 @@ export function AttendanceTable({
         sortUndefined: "last",
         cell: (c) => {
           const v = c.getValue<string | null>();
-          return v ? <span className="tabular-nums text-xs font-mono">{v}</span> : dash;
+          return v ? <span className="tabular-nums text-xs font-mono block text-center">{v}</span> : <div className="text-center">{dash}</div>;
         },
       },
       {
@@ -168,7 +243,7 @@ export function AttendanceTable({
         header: "Présence",
         cell: (c) => {
           const v = formatDurationLong(c.getValue<number>());
-          return v === "-" ? dash : <span className="tabular-nums text-xs font-medium whitespace-nowrap">{v}</span>;
+          return v === "-" ? <div className="text-center">{dash}</div> : <span className="tabular-nums text-xs font-medium whitespace-nowrap text-center block">{v}</span>;
         },
       },
       {
@@ -179,11 +254,24 @@ export function AttendanceTable({
           const label = formatStatut(statut, c.row.original.nbPointages);
           if (label === "-") return dash;
           const style = TON_STYLES[getStatutTon(statut)];
+          const tags = label.split(" · ");
+
           return (
-            <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium", style.text)}>
-              <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", style.dot)} />
-              {label}
-            </span>
+            <div className="flex flex-wrap items-center gap-1">
+              {tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:text-[11px] font-medium leading-tight border max-w-full truncate",
+                    style.bg
+                  )}
+                  title={label}
+                >
+                  <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", style.dot)} />
+                  <span className="truncate">{tag}</span>
+                </span>
+              ))}
+            </div>
           );
         },
       },
@@ -191,17 +279,19 @@ export function AttendanceTable({
         id: "actions",
         header: "Détails",
         cell: ({ row }) => (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenTimeline(row.original);
-            }}
-            className="p-1 rounded-md hover:bg-muted text-primary cursor-pointer transition-colors"
-            title="Voir la timeline (A entré / A sorti et détails)"
-          >
-            <History className="size-4" />
-          </button>
+          <div className="flex items-center justify-center">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenTimeline(row.original);
+              }}
+              className="p-1 rounded-md hover:bg-muted text-primary cursor-pointer transition-colors"
+              title="Voir la timeline (A entré / A sorti et détails)"
+            >
+              <History className="size-3.5 sm:size-4" />
+            </button>
+          </div>
         ),
       },
     ],
@@ -282,32 +372,33 @@ export function AttendanceTable({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs sm:text-sm">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full border-collapse text-left text-xs table-fixed">
             <thead className="bg-muted text-xs text-muted-foreground">
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
                   {hg.headers.map((h) => {
                     const sorted = h.column.getIsSorted();
+                    const colStyle = COLUMN_CLASSES[h.id] || { th: "", td: "" };
                     return (
                       <th
                         key={h.id}
                         scope="col"
                         aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}
-                        className="whitespace-nowrap px-2 py-2 sm:px-2.5 font-medium"
+                        className={cn("px-2 py-2 font-medium text-xs whitespace-nowrap", colStyle.th)}
                       >
                         <button
                           type="button"
                           onClick={h.column.getToggleSortingHandler()}
                           className="inline-flex items-center gap-1 rounded-md hover:text-foreground cursor-pointer"
                         >
-                          {flexRender(h.column.columnDef.header, h.getContext())}
+                          <span>{flexRender(h.column.columnDef.header, h.getContext())}</span>
                           {sorted === "asc" ? (
-                            <ArrowUp className="size-3.5" aria-hidden="true" />
+                            <ArrowUp className="size-3 shrink-0" aria-hidden="true" />
                           ) : sorted === "desc" ? (
-                            <ArrowDown className="size-3.5" aria-hidden="true" />
+                            <ArrowDown className="size-3 shrink-0" aria-hidden="true" />
                           ) : (
-                            <ArrowUpDown className="size-3.5 opacity-50" aria-hidden="true" />
+                            <ArrowUpDown className="size-3 shrink-0 opacity-40" aria-hidden="true" />
                           )}
                         </button>
                       </th>
@@ -323,11 +414,14 @@ export function AttendanceTable({
                   onClick={() => handleOpenTimeline(row.original)}
                   className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors"
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-2 py-2 sm:px-2.5 sm:py-2.5 align-middle">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const colStyle = COLUMN_CLASSES[cell.column.id] || { th: "", td: "" };
+                    return (
+                      <td key={cell.id} className={cn("px-2 py-2 align-middle text-xs", colStyle.td)}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
