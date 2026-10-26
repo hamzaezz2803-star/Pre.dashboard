@@ -289,61 +289,75 @@ export function Sidebar({
             </div>
           )}
 
-          {/* Liens de navigation */}
-          <div>
-            {!collapsed && (
-              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-                Menu Principal
-              </p>
-            )}
-            <nav className="space-y-1.5" aria-label="Navigation principale">
-              {visibleNavItems.map((item) => {
-                const active = isActive(item.href);
-                const IconComponent = item.icon;
+          {/* Liens de navigation par section */}
+          <div className="space-y-4">
+            {NAV_SECTIONS.map((section, sIdx) => {
+              const visibleItems = section.items.filter((item) =>
+                item.allowedRoles.includes(user.role)
+              );
+              if (visibleItems.length === 0) return null;
 
-                return (
-                  <Link
-                    key={item.id}
-                    href={item.href}
-                    onClick={onCloseMobile}
-                    title={collapsed ? `${item.label} (${item.description})` : undefined}
-                    className={cn(
-                      "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
-                      active
-                        ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      collapsed && "justify-center px-2"
-                    )}
-                  >
-                    <IconComponent
-                      className={cn(
-                        "size-5 shrink-0 transition-transform group-hover:scale-110",
-                        active ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
-                      )}
-                      aria-hidden="true"
-                    />
+              return (
+                <div key={section.title || sIdx} className="space-y-1">
+                  {!collapsed ? (
+                    <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                      {section.title}
+                    </p>
+                  ) : sIdx > 0 ? (
+                    <div className="my-2 border-t border-border/60 mx-2" />
+                  ) : null}
 
-                    {!collapsed && (
-                      <div className="flex flex-1 items-center justify-between min-w-0">
-                        <span className="truncate">{item.label}</span>
-                        {item.badge && (
-                          <span
+                  <nav className="space-y-1" aria-label={section.title}>
+                    {visibleItems.map((item) => {
+                      const active = isActive(item.href);
+                      const IconComponent = item.icon;
+
+                      return (
+                        <Link
+                          key={item.id}
+                          href={item.href}
+                          onClick={onCloseMobile}
+                          title={collapsed ? `${item.label} (${item.description})` : undefined}
+                          className={cn(
+                            "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                            active
+                              ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                            collapsed && "justify-center px-2"
+                          )}
+                        >
+                          <IconComponent
                             className={cn(
-                              "ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                              active
-                                ? "bg-white/20 text-white"
-                                : "bg-primary/10 text-primary dark:bg-primary/20"
+                              "size-4.5 shrink-0 transition-transform group-hover:scale-110",
+                              active ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
                             )}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </Link>
-                );
-              })}
-            </nav>
+                            aria-hidden="true"
+                          />
+
+                          {!collapsed && (
+                            <div className="flex flex-1 items-center justify-between min-w-0">
+                              <span className="truncate">{item.label}</span>
+                              {item.badge && (
+                                <span
+                                  className={cn(
+                                    "ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                                    active
+                                      ? "bg-white/20 text-white"
+                                      : "bg-primary/10 text-primary dark:bg-primary/20"
+                                  )}
+                                >
+                                  {item.badge}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </div>
+              );
+            })}
           </div>
         </div>
 
