@@ -4,9 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Settings,
-  Moon,
-  Sun,
-  Monitor,
   RefreshCw,
   Database,
   ShieldCheck,
@@ -56,10 +53,10 @@ export function SettingsPageContent({ currentUser }: SettingsPageContentProps) {
       <div className="flex flex-col gap-1 border-b border-border pb-5">
         <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
           <Settings className="size-6 text-primary" />
-          <span>Paramètres de l'application</span>
+          <span>Paramètres de l&apos;application</span>
         </h1>
         <p className="text-sm text-muted-foreground">
-          Configurez l'apparence, visualisez le statut du système et gérez vos préférences.
+          Configurez l&apos;apparence, visualisez le statut du système et gérez vos préférences.
         </p>
       </div>
 
@@ -77,7 +74,7 @@ export function SettingsPageContent({ currentUser }: SettingsPageContentProps) {
           <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/20">
             <div>
               <p className="text-sm font-semibold text-foreground">Mode Sombre / Clair</p>
-              <p className="text-xs text-muted-foreground">Changer immédiatement le thème de l'interface</p>
+              <p className="text-xs text-muted-foreground">Changer immédiatement le thème de l&apos;interface</p>
             </div>
             <ThemeToggle />
           </div>
@@ -87,7 +84,7 @@ export function SettingsPageContent({ currentUser }: SettingsPageContentProps) {
         <Card className="p-6 space-y-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-5 text-primary" />
-            <h2 className="text-base font-semibold text-foreground">Droits d'accès du compte</h2>
+            <h2 className="text-base font-semibold text-foreground">Droits d&apos;accès du compte</h2>
           </div>
           <p className="text-xs text-muted-foreground">
             Résumé des privilèges associés à votre rôle actuel.

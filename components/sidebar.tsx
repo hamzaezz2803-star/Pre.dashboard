@@ -14,10 +14,7 @@ import {
   ChevronRight,
   ShieldCheck,
   UserCheck,
-  Sparkles,
-  Menu,
   X,
-  CheckCircle2,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";

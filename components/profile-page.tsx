@@ -10,8 +10,6 @@ import {
   AlertCircle,
   Save,
   Lock,
-  Calendar,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

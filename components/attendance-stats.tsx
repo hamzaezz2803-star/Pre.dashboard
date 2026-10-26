@@ -122,29 +122,32 @@ export function AttendanceStats({
   const [deptSort, setDeptSort] = useState<DeptSortField>("rate");
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
   const [usersData, setUsersData] = useState<ConnectedUsersResponse | null>(null);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
 
-  const fetchConnectedUsers = useCallback(async () => {
-    setLoadingUsers(true);
-    try {
-      const res = await fetch("/api/admin/connected-users");
-      if (res.ok) {
-        const data = await res.json();
-        setUsersData(data);
-      }
-    } catch {
-      // Échec silencieux
-    } finally {
-      setLoadingUsers(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchConnectedUsers();
-    const timer = setInterval(fetchConnectedUsers, 20000);
-    return () => clearInterval(timer);
-  }, [fetchConnectedUsers]);
+    let mounted = true;
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch("/api/admin/connected-users");
+        if (res.ok && mounted) {
+          const data = await res.json();
+          setUsersData(data);
+        }
+      } catch {
+        // Échec silencieux
+      } finally {
+        if (mounted) setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+    const timer = setInterval(fetchUsers, 20000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   const hasRestrictedFilter =
     (activeDept && activeDept !== "all") || (activeStatut && activeStatut !== "all");

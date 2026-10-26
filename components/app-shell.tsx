@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, ShieldCheck, UserCheck } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Sidebar, type SidebarUser } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -17,8 +17,6 @@ export function AppShell({ user, children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-
-  const isSuperAdmin = user.role === "super_admin";
 
   // Obtenir le titre de la page courante pour la barre mobile
   const getPageTitle = () => {
