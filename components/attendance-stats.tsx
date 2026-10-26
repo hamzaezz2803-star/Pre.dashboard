@@ -72,6 +72,23 @@ const STATUT_CONFIG: Record<
   },
 };
 
+interface ConnectedUser {
+  id: number;
+  username: string;
+  full_name: string | null;
+  role: "super_admin" | "admin";
+  active: boolean;
+  isOnline: boolean;
+  isCurrent: boolean;
+  lastSeen: string | null;
+}
+
+interface ConnectedUsersResponse {
+  connectedCount: number;
+  totalUsers: number;
+  users: ConnectedUser[];
+}
+
 type DeptSortField = "rate" | "total" | "minutes";
 
 export function AttendanceStats({
@@ -86,6 +103,29 @@ export function AttendanceStats({
   const [hoveredStatus, setHoveredStatus] = useState<StatutTon | null>(null);
   const [deptSort, setDeptSort] = useState<DeptSortField>("rate");
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
+  const [usersData, setUsersData] = useState<ConnectedUsersResponse | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  const fetchConnectedUsers = useCallback(async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await fetch("/api/admin/connected-users");
+      if (res.ok) {
+        const data = await res.json();
+        setUsersData(data);
+      }
+    } catch {
+      // Échec silencieux
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchConnectedUsers();
+    const timer = setInterval(fetchConnectedUsers, 20000);
+    return () => clearInterval(timer);
+  }, [fetchConnectedUsers]);
 
   const hasRestrictedFilter =
     (activeDept && activeDept !== "all") || (activeStatut && activeStatut !== "all");
@@ -902,6 +942,117 @@ export function AttendanceStats({
               ))}
             </tbody>
           </table>
+        </div>
+      </Card>
+
+      {/* 6. SECTION DES UTILISATEURS CONNECTÉS (Réservée au Super Administrateur) */}
+      <Card className="overflow-hidden">
+        <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <ShieldCheck className="size-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold tracking-tight">
+                  Utilisateurs du Système & Sessions Connectées
+                </h3>
+                {usersData && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                    {usersData.connectedCount} en ligne
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Surveillance en temps réel des accès et sessions actives sur le tableau de bord.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={fetchConnectedUsers}
+            disabled={loadingUsers}
+            className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer"
+          >
+            <RefreshCw className={cn("size-3.5", loadingUsers && "animate-spin")} />
+            <span>Actualiser</span>
+          </Button>
+        </div>
+
+        <div className="p-4">
+          {loadingUsers && !usersData ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">
+              Chargement des utilisateurs connectés...
+            </div>
+          ) : usersData?.users && usersData.users.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {usersData.users.map((user) => (
+                <div
+                  key={user.id}
+                  className={cn(
+                    "p-3 rounded-lg border transition-all flex items-center justify-between gap-3 shadow-2xs",
+                    user.isOnline
+                      ? "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/50"
+                      : "border-border/60 bg-muted/20 hover:bg-muted/40"
+                  )}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative">
+                      <div className="size-9 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-xs text-primary shadow-xs">
+                        {user.username.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span
+                        className={cn(
+                          "absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-surface",
+                          user.isOnline ? "bg-emerald-500" : "bg-slate-400"
+                        )}
+                        title={user.isOnline ? "En ligne" : "Hors ligne"}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-xs text-foreground truncate">
+                          {user.full_name || user.username}
+                        </span>
+                        {user.isCurrent && (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary text-primary-foreground">
+                            Vous
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        @{user.username} · {user.role === "super_admin" ? "Super Admin" : "Admin"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    {user.isOnline ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        En ligne
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
+                        Hors ligne
+                      </span>
+                    )}
+                    {user.lastSeen && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {new Date(user.lastSeen).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground py-2 text-center">
+              Aucun utilisateur trouvé.
+            </p>
+          )}
         </div>
       </Card>
     </div>
