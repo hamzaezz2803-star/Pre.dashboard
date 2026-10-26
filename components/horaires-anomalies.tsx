@@ -15,6 +15,15 @@ import {
   UserX,
   ClockAlert,
   HelpCircle as QuestionIcon,
+  X,
+  History,
+  LogIn,
+  LogOut,
+  Building,
+  CalendarClock,
+  Tablet,
+  MapPin,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -259,6 +268,29 @@ export function HorairesAnomalies() {
     return filteredAnomalies.slice(start, start + PAGE_SIZE);
   }, [filteredAnomalies, page]);
 
+  // Modale de diagnostic et détail d'anomalie
+  const [selectedAnomalie, setSelectedAnomalie] = useState<AnomalieItem | null>(null);
+  const [timelineEvents, setTimelineEvents] = useState<unknown[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+
+  const handleOpenAnomalie = async (item: AnomalieItem) => {
+    setSelectedAnomalie(item);
+    setLoadingTimeline(true);
+    try {
+      const res = await fetch(
+        `/api/presence/timeline?pin=${encodeURIComponent(item.empCode)}&date=${encodeURIComponent(item.dateService)}`
+      );
+      if (res.ok) {
+        const d = await res.json();
+        setTimelineEvents(d.timeline || []);
+      }
+    } catch {
+      setTimelineEvents([]);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  };
+
   // Export Excel
   const handleExportExcel = async () => {
     setExporting(true);
@@ -494,26 +526,31 @@ export function HorairesAnomalies() {
       </Card>
 
       {/* Tableau des anomalies */}
-      <Card className="border-border">
-        <div className="flex items-center justify-between border-b border-border p-3 text-xs text-muted-foreground">
-          <span>
-            {filteredAnomalies.length} {filteredAnomalies.length > 1 ? "anomalies détectées" : "anomalie détectée"}
-          </span>
+      <Card className="border-border overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between border-b border-border p-3 text-xs text-muted-foreground gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-foreground">
+              {filteredAnomalies.length} {filteredAnomalies.length > 1 ? "anomalies détectées" : "anomalie détectée"}
+            </span>
+            <span className="text-muted-foreground text-[11px] hidden md:inline">
+              · Cliquez sur une ligne pour ouvrir le diagnostic détaillé
+            </span>
+          </div>
           {error && <span className="text-danger font-medium">{error}</span>}
         </div>
 
-        <div className="overflow-x-auto w-full">
+        <div className="w-full overflow-hidden">
           <table className="w-full border-collapse text-left text-xs table-fixed">
             <thead className="bg-muted text-xs text-muted-foreground">
               <tr>
-                <th className="px-2.5 py-2.5 font-medium w-[7%]">Matricule</th>
-                <th className="px-2.5 py-2.5 font-medium w-[17%]">Personnel</th>
-                <th className="px-2.5 py-2.5 font-medium w-[14%]">Département</th>
-                <th className="px-2.5 py-2.5 font-medium w-[9%]">Date service</th>
-                <th className="px-2.5 py-2.5 font-medium w-[15%]">Type d&apos;anomalie</th>
-                <th className="px-2.5 py-2.5 font-medium text-center w-[8%]">Gravité</th>
-                <th className="px-2.5 py-2.5 font-medium w-[18%]">Diagnostic / Explication</th>
-                <th className="px-2.5 py-2.5 font-medium w-[12%]">Action recommandée</th>
+                <th className="px-1.5 py-2.5 font-medium text-center w-[6%]">Matricule</th>
+                <th className="px-2 py-2.5 font-medium w-[18%]">Personnel</th>
+                <th className="px-2 py-2.5 font-medium w-[15%]">Département</th>
+                <th className="px-1 py-2.5 font-medium text-center w-[9%]">Date service</th>
+                <th className="px-1.5 py-2.5 font-medium w-[15%]">Type d&apos;anomalie</th>
+                <th className="px-1 py-2.5 font-medium text-center w-[8%]">Gravité</th>
+                <th className="px-2 py-2.5 font-medium w-[19%]">Diagnostic / Explication</th>
+                <th className="px-1.5 py-2.5 font-medium text-center w-[10%]">Action recommandée</th>
               </tr>
             </thead>
             <tbody>
@@ -537,31 +574,35 @@ export function HorairesAnomalies() {
                   return (
                     <tr
                       key={a.id}
-                      className="border-t border-border hover:bg-muted/40 transition-colors"
+                      onClick={() => handleOpenAnomalie(a)}
+                      className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors group"
+                      title="Cliquez pour afficher le diagnostic détaillé"
                     >
                       {/* Matricule */}
-                      <td className="px-2.5 py-2.5 font-mono text-xs text-muted-foreground">
+                      <td className="px-1.5 py-2 text-center font-mono text-xs text-muted-foreground">
                         {a.empCode}
                       </td>
 
                       {/* Personnel */}
-                      <td className="px-2.5 py-2.5 font-semibold text-foreground truncate" title={a.nomComplet}>
-                        {a.nomComplet}
+                      <td className="px-2 py-2 font-semibold text-foreground truncate" title={a.nomComplet}>
+                        <span className="truncate group-hover:text-primary transition-colors block">
+                          {a.nomComplet}
+                        </span>
                       </td>
 
                       {/* Département */}
-                      <td className="px-2.5 py-2.5 text-muted-foreground truncate" title={a.deptName}>
-                        {a.deptName}
+                      <td className="px-2 py-2 text-muted-foreground truncate" title={a.deptName}>
+                        <span className="truncate block">{a.deptName}</span>
                       </td>
 
                       {/* Date service */}
-                      <td className="px-2.5 py-2.5 tabular-nums whitespace-nowrap">
+                      <td className="px-1 py-2 text-center tabular-nums whitespace-nowrap text-xs">
                         {formatDateFr(a.dateService)}
                       </td>
 
                       {/* Type d'anomalie */}
-                      <td className="px-2.5 py-2.5">
-                        <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <td className="px-1.5 py-2">
+                        <div className="flex items-center gap-1.5 font-medium text-foreground truncate">
                           {a.typeAnomalie === "retard" && (
                             <ClockAlert className="size-3.5 text-amber-500 shrink-0" />
                           )}
@@ -579,7 +620,7 @@ export function HorairesAnomalies() {
                       </td>
 
                       {/* Gravité */}
-                      <td className="px-2.5 py-2.5 text-center">
+                      <td className="px-1 py-2 text-center">
                         <span
                           className={cn(
                             "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold border",
@@ -592,13 +633,13 @@ export function HorairesAnomalies() {
                       </td>
 
                       {/* Diagnostic / Explication */}
-                      <td className="px-2.5 py-2.5 text-xs text-muted-foreground truncate" title={a.explication}>
-                        {a.explication}
+                      <td className="px-2 py-2 text-xs text-muted-foreground truncate" title={a.explication}>
+                        <span className="truncate block">{a.explication}</span>
                       </td>
 
                       {/* Action recommandée */}
-                      <td className="px-2.5 py-2.5 text-xs font-medium text-foreground truncate" title={a.actionRecommandee}>
-                        <span className="inline-flex items-center gap-1 text-[11px] text-primary">
+                      <td className="px-1.5 py-2 text-center text-xs font-medium text-foreground">
+                        <span className="inline-flex items-center gap-1 text-[11px] text-primary truncate max-w-full" title={a.actionRecommandee}>
                           <ArrowRight className="size-3 shrink-0" />
                           <span className="truncate">{a.actionRecommandee}</span>
                         </span>
@@ -638,6 +679,176 @@ export function HorairesAnomalies() {
           </div>
         )}
       </Card>
+
+      {/* Modale de diagnostic détaillé d'anomalie */}
+      {selectedAnomalie && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <Card className="w-full max-w-2xl p-0 overflow-hidden shadow-2xl border-border bg-surface rounded-xl">
+            {/* En-tête modal */}
+            <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-red-500/15 text-red-600 font-bold text-sm">
+                  <AlertTriangle className="size-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-foreground">Fiche d&apos;anomalie de pointage</h3>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold border",
+                        GRAVITE_STYLES[selectedAnomalie.gravite].badge
+                      )}
+                    >
+                      <span className={cn("size-1.5 rounded-full", GRAVITE_STYLES[selectedAnomalie.gravite].dot)} />
+                      {GRAVITE_STYLES[selectedAnomalie.gravite].label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                    <span className="font-semibold text-foreground">{selectedAnomalie.nomComplet}</span>
+                    <span>•</span>
+                    <span>Matricule #{selectedAnomalie.empCode}</span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Building className="size-3" />
+                      {selectedAnomalie.deptName}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAnomalie(null)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+                aria-label="Fermer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* 4 Cartes de diagnostic */}
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-muted/10 border-b border-border">
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <AlertCircle className="size-3 text-primary" /> Anomalie
+                </span>
+                <p className="font-bold text-xs text-foreground mt-1 truncate" title={selectedAnomalie.libelleAnomalie}>
+                  {selectedAnomalie.libelleAnomalie}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Service du {formatDateFr(selectedAnomalie.dateService)}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <LogIn className="size-3" /> Entrée constatée
+                </span>
+                <p className="font-bold text-xs text-foreground mt-1 font-mono">
+                  {selectedAnomalie.heureEntree || <span className="text-muted-foreground italic">Non enregistrée</span>}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Horaire : {selectedAnomalie.horaire}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 text-red-600 dark:text-red-400">
+                  <LogOut className="size-3" /> Sortie constatée
+                </span>
+                <p className="font-bold text-xs text-foreground mt-1 font-mono">
+                  {selectedAnomalie.heureSortie || <span className="text-muted-foreground italic">Non enregistrée</span>}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {selectedAnomalie.heureSortie ? "Badgeage validé" : "Badge manquant"}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <ArrowRight className="size-3 text-primary" /> Action requise
+                </span>
+                <p className="font-semibold text-[11px] text-primary mt-1 line-clamp-2" title={selectedAnomalie.actionRecommandee}>
+                  {selectedAnomalie.actionRecommandee}
+                </p>
+              </div>
+            </div>
+
+            {/* Explication & Diagnostic détaillé */}
+            <div className="p-4 space-y-3">
+              <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs space-y-1">
+                <span className="font-bold text-foreground flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="size-3.5" /> Diagnostic du système :
+                </span>
+                <p className="text-muted-foreground">{selectedAnomalie.explication}</p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <History className="size-3.5 text-primary" />
+                  Passages détectés sur les badgeuses ZKBio :
+                </h4>
+
+                {loadingTimeline ? (
+                  <div className="py-6 text-center text-xs text-muted-foreground space-y-2">
+                    <RotateCcw className="size-4 animate-spin mx-auto text-primary" />
+                    <p>Interrogation des badgeuses...</p>
+                  </div>
+                ) : timelineEvents.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {(timelineEvents as Array<{
+                      id?: string;
+                      heure?: string;
+                      jour?: string;
+                      label?: string;
+                      type?: string;
+                      color?: string;
+                      lieu?: string;
+                      appareil?: string;
+                    }>).map((ev, i) => (
+                      <div
+                        key={ev.id || i}
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-border text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "flex size-6 items-center justify-center rounded-md font-bold text-xs shrink-0",
+                            ev.type === "entree" ? "bg-emerald-500/15 text-emerald-600" : "bg-red-500/15 text-red-600"
+                          )}>
+                            {ev.type === "entree" ? <LogIn className="size-3" /> : <LogOut className="size-3" />}
+                          </span>
+                          <div>
+                            <p className="font-semibold text-foreground">{ev.label}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {ev.appareil || "Terminal principal"} · {ev.lieu || "Site OCP"}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-mono font-bold tabular-nums">
+                          {ev.heure ? ev.heure.slice(0, 5) : "-"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border text-center text-xs text-muted-foreground">
+                    Aucun événement de badgeage physique enregistré sur les terminaux pour cette date.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pied de modal */}
+            <div className="p-3 border-t border-border flex items-center justify-between bg-muted/20">
+              <span className="text-[11px] text-muted-foreground">
+                Action administrative : à régulariser par le gestionnaire RH.
+              </span>
+              <Button variant="outline" onClick={() => setSelectedAnomalie(null)} className="h-8 text-xs font-semibold">
+                Fermer
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

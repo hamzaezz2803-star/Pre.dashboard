@@ -16,6 +16,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const pin = searchParams.get('pin')?.trim();
     const date = searchParams.get('date')?.trim();
+    const dateFin = searchParams.get('date_fin')?.trim() || searchParams.get('dateFin')?.trim() || date;
 
     if (!pin || !date) {
       return NextResponse.json(
@@ -38,9 +39,11 @@ export async function GET(request) {
          COALESCE(att_place, 'Badgeuse principale') AS lieu,
          COALESCE(device_name, 'Terminal pointage') AS appareil
        FROM att_transaction
-       WHERE pers_person_pin::text = $1 AND att_datetime::date = $2::date
+       WHERE pers_person_pin::text = $1 
+         AND att_datetime >= $2::date 
+         AND att_datetime < ($3::date + INTERVAL '1 day')
        ORDER BY att_datetime ASC;`,
-      [pin, date]
+      [pin, date, dateFin]
     );
 
     const STATE_LABELS = {

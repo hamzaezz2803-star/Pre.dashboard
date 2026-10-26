@@ -16,6 +16,11 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Building,
+  Clock,
+  Tablet,
+  MapPin,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -198,7 +203,7 @@ export function HorairesSuivi() {
     setLoadingTimeline(true);
     try {
       const res = await fetch(
-        `/api/presence/timeline?pin=${encodeURIComponent(row.empCode)}&date=${encodeURIComponent(row.dateService)}`
+        `/api/presence/timeline?pin=${encodeURIComponent(row.empCode)}&date=${encodeURIComponent(row.dateService)}&date_fin=${encodeURIComponent(row.dateSortie || row.dateService)}`
       );
       if (res.ok) {
         const d = await res.json();
@@ -487,27 +492,32 @@ export function HorairesSuivi() {
       </Card>
 
       {/* Tableau des présences avec affectation horaire */}
-      <Card className="border-border">
-        <div className="flex items-center justify-between border-b border-border p-3 text-xs text-muted-foreground">
-          <span>
-            {rows.length} {rows.length > 1 ? "enregistrements trouvés" : "enregistrement trouvé"}
-          </span>
+      <Card className="border-border overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between border-b border-border p-3 text-xs text-muted-foreground gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-foreground">
+              {rows.length} {rows.length > 1 ? "enregistrements trouvés" : "enregistrement trouvé"}
+            </span>
+            <span className="text-muted-foreground text-[11px] hidden md:inline">
+              · Cliquez sur une ligne pour ouvrir le détail complet des pointages
+            </span>
+          </div>
           {error && <span className="text-danger font-medium">{error}</span>}
         </div>
 
-        <div className="overflow-x-auto w-full">
+        <div className="w-full overflow-hidden">
           <table className="w-full border-collapse text-left text-xs table-fixed">
             <thead className="bg-muted text-xs text-muted-foreground">
               <tr>
-                <th className="px-2.5 py-2.5 font-medium w-[7%]">Matricule</th>
-                <th className="px-2.5 py-2.5 font-medium w-[17%]">Personnel</th>
-                <th className="px-2.5 py-2.5 font-medium w-[14%]">Département</th>
-                <th className="px-2.5 py-2.5 font-medium w-[9%]">Date service</th>
-                <th className="px-2.5 py-2.5 font-medium w-[15%]">Horaire affecté</th>
-                <th className="px-2.5 py-2.5 font-medium text-center w-[9%]">Entrée</th>
-                <th className="px-2.5 py-2.5 font-medium text-center w-[11%]">Sortie</th>
-                <th className="px-2.5 py-2.5 font-medium text-center w-[7%]">Présence</th>
-                <th className="px-2.5 py-2.5 font-medium w-[11%]">Statut</th>
+                <th className="px-1.5 py-2.5 font-medium text-center w-[6%]">Matricule</th>
+                <th className="px-2 py-2.5 font-medium w-[18%]">Personnel</th>
+                <th className="px-2 py-2.5 font-medium w-[15%]">Département</th>
+                <th className="px-1 py-2.5 font-medium text-center w-[9%]">Date service</th>
+                <th className="px-1.5 py-2.5 font-medium w-[15%]">Horaire affecté</th>
+                <th className="px-1 py-2.5 font-medium text-center w-[7%]">Entrée</th>
+                <th className="px-1 py-2.5 font-medium text-center w-[9%]">Sortie</th>
+                <th className="px-1 py-2.5 font-medium text-center w-[8%]">Présence</th>
+                <th className="px-1.5 py-2.5 font-medium text-center w-[13%]">Statut</th>
               </tr>
             </thead>
             <tbody>
@@ -531,36 +541,40 @@ export function HorairesSuivi() {
                     <tr
                       key={`${r.empCode}_${r.dateService}_${idx}`}
                       onClick={() => handleOpenTimeline(r)}
-                      className="border-t border-border hover:bg-muted/40 cursor-pointer transition-colors"
+                      className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors group"
+                      title="Cliquez pour afficher la fiche détaillée"
                     >
                       {/* Matricule */}
-                      <td className="px-2.5 py-2 font-mono text-xs text-muted-foreground">
+                      <td className="px-1.5 py-2 text-center font-mono text-xs text-muted-foreground">
                         {r.empCode}
                       </td>
 
                       {/* Nom employé */}
-                      <td className="px-2.5 py-2 font-semibold text-foreground truncate" title={r.nomComplet}>
-                        {r.nomComplet}
+                      <td className="px-2 py-2 font-semibold text-foreground truncate" title={r.nomComplet}>
+                        <span className="truncate group-hover:text-primary transition-colors block">
+                          {r.nomComplet}
+                        </span>
                       </td>
 
                       {/* Département */}
-                      <td className="px-2.5 py-2 text-muted-foreground truncate" title={r.deptName}>
-                        {r.deptName}
+                      <td className="px-2 py-2 text-muted-foreground truncate" title={r.deptName}>
+                        <span className="truncate block">{r.deptName}</span>
                       </td>
 
                       {/* Date service */}
-                      <td className="px-2.5 py-2 tabular-nums whitespace-nowrap">
+                      <td className="px-1 py-2 text-center tabular-nums whitespace-nowrap text-xs">
                         {formatDateFr(r.dateService)}
                       </td>
 
                       {/* Horaire affecté automatiquement */}
-                      <td className="px-2.5 py-2">
+                      <td className="px-1.5 py-2">
                         {r.horaire?.code && r.horaire.code !== "NON_DEFINI" ? (
-                          <div className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold border"
+                          <div
+                            className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold border max-w-full truncate"
                             style={{
                               backgroundColor: r.horaire.code === "H003" ? "rgba(99, 102, 241, 0.12)" : "rgba(15, 107, 79, 0.08)",
                               borderColor: r.horaire.code === "H003" ? "rgba(99, 102, 241, 0.3)" : "rgba(15, 107, 79, 0.25)",
-                              color: r.horaire.code === "H003" ? "#4f46e5" : "#0f6b4f"
+                              color: r.horaire.code === "H003" ? "#4f46e5" : "#0f6b4f",
                             }}
                             title={`${r.horaire.libelle} (${r.horaire.heureDebut} - ${r.horaire.heureFin})`}
                           >
@@ -579,12 +593,12 @@ export function HorairesSuivi() {
                       </td>
 
                       {/* Heure d'entrée */}
-                      <td className="px-2.5 py-2 text-center font-mono tabular-nums text-xs">
+                      <td className="px-1 py-2 text-center font-mono tabular-nums text-xs">
                         {r.heureEntree || <span className="text-muted-foreground">-</span>}
                       </td>
 
                       {/* Heure de sortie */}
-                      <td className="px-2.5 py-2 text-center font-mono tabular-nums text-xs">
+                      <td className="px-1 py-2 text-center font-mono tabular-nums text-xs">
                         {r.heureSortie ? (
                           <div className="inline-flex items-center justify-center gap-1">
                             <span>{r.heureSortie}</span>
@@ -603,15 +617,15 @@ export function HorairesSuivi() {
                       </td>
 
                       {/* Durée */}
-                      <td className="px-2.5 py-2 text-center tabular-nums font-medium text-xs whitespace-nowrap">
+                      <td className="px-1 py-2 text-center tabular-nums font-medium text-xs whitespace-nowrap">
                         {formatDurationLong(r.dureeMinutes)}
                       </td>
 
                       {/* Statut */}
-                      <td className="px-2.5 py-2">
+                      <td className="px-1.5 py-2 text-center">
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium border truncate",
+                            "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium border max-w-full truncate",
                             styleStatut.bg,
                             styleStatut.text
                           )}
@@ -656,91 +670,240 @@ export function HorairesSuivi() {
         )}
       </Card>
 
-      {/* Modal Timeline des pointages */}
+      {/* Modale complète de détails et historique des pointages */}
       {selectedRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <Card className="w-full max-w-lg p-0 overflow-hidden shadow-2xl border-border bg-surface">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <Card className="w-full max-w-2xl p-0 overflow-hidden shadow-2xl border-border bg-surface rounded-xl">
+            {/* En-tête modal */}
             <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
-              <div className="flex items-center gap-2.5">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <History className="size-4" />
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-sm">
+                  {(selectedRow.nomComplet || "E").slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">Détail du service et pointages</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedRow.nomComplet} · {formatDateFr(selectedRow.dateService)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-foreground">{selectedRow.nomComplet}</h3>
+                    <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                      Matricule #{selectedRow.empCode}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                    <span className="flex items-center gap-1">
+                      <Building className="size-3" />
+                      {selectedRow.deptName}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 font-medium text-foreground">
+                      <CalendarClock className="size-3 text-primary" />
+                      Service du {formatDateFr(selectedRow.dateService)}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedRow(null)}
-                className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+                aria-label="Fermer"
               >
                 <X className="size-4" />
               </button>
             </div>
 
-            {/* Récapitulatif */}
-            <div className="p-4 grid grid-cols-3 gap-2 text-center text-xs border-b border-border bg-muted/10">
-              <div className="p-2 rounded bg-surface border border-border">
-                <span className="text-[10px] text-muted-foreground font-semibold">Horaire affecté</span>
-                <p className="font-bold text-xs text-primary mt-0.5">{selectedRow.horaire?.libelle || "Non défini"}</p>
-              </div>
-              <div className="p-2 rounded bg-surface border border-border">
-                <span className="text-[10px] text-muted-foreground font-semibold">Entrée</span>
-                <p className="font-bold text-xs text-foreground mt-0.5">{selectedRow.heureEntree || "-"}</p>
-              </div>
-              <div className="p-2 rounded bg-surface border border-border">
-                <span className="text-[10px] text-muted-foreground font-semibold">Sortie</span>
-                <p className="font-bold text-xs text-foreground mt-0.5">
-                  {selectedRow.heureSortie || "-"}
-                  {selectedRow.isNightShift && " (+1j)"}
+            {/* 4 Cartes synthétiques */}
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-muted/10 border-b border-border">
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <Clock className="size-3 text-primary" /> Horaire affecté
+                </span>
+                <p className="font-bold text-xs text-primary mt-1">
+                  {selectedRow.horaire?.libelle || "Non défini"}
                 </p>
+                {selectedRow.horaire?.heureDebut && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Prévu : {selectedRow.horaire.heureDebut} - {selectedRow.horaire.heureFin}
+                  </p>
+                )}
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <LogIn className="size-3" /> Entrée réelle
+                </span>
+                <p className="font-bold text-xs text-foreground mt-1 font-mono">
+                  {selectedRow.heureEntree || "-"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {formatDateFr(selectedRow.dateEntree)}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 text-red-600 dark:text-red-400">
+                  <LogOut className="size-3" /> Sortie réelle
+                </span>
+                <p className="font-bold text-xs text-foreground mt-1 font-mono">
+                  {selectedRow.heureSortie || "-"}
+                  {selectedRow.isNightShift && (
+                    <span className="ml-1 text-[10px] text-indigo-600 font-bold bg-indigo-500/10 px-1 py-0.2 rounded">
+                      +1j
+                    </span>
+                  )}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {formatDateFr(selectedRow.dateSortie)}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-surface border border-border">
+                <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <History className="size-3 text-foreground" /> Durée & Statut
+                </span>
+                <p className="font-bold text-xs text-foreground mt-1 tabular-nums">
+                  {formatDurationLong(selectedRow.dureeMinutes)}
+                </p>
+                <div className="mt-0.5">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded px-1.5 py-0.2 text-[10px] font-semibold border",
+                      (STATUT_STYLES[selectedRow.statut] || STATUT_STYLES["Horaire non défini"]).bg,
+                      (STATUT_STYLES[selectedRow.statut] || STATUT_STYLES["Horaire non défini"]).text
+                    )}
+                  >
+                    {selectedRow.statut}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Pointages détaillés */}
-            <div className="p-4 max-h-64 overflow-y-auto space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">Passages enregistrés sur badgeuses :</p>
+            {/* Historique des pointages sur badgeuses */}
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <History className="size-3.5 text-primary" />
+                  Passages enregistrés sur badgeuses ({selectedRow.nbPointages || 0})
+                </h4>
+                {selectedRow.isNightShift && (
+                  <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Moon className="size-2.5" /> Poste de nuit traversant minuit
+                  </span>
+                )}
+              </div>
+
               {loadingTimeline ? (
-                <p className="text-xs text-muted-foreground text-center py-6">Chargement des détails...</p>
-              ) : (
-                <div className="space-y-2 text-xs">
-                  {timelineEvents.length > 0 ? (
-                    (timelineEvents as Array<{ time?: string; type?: string; terminal?: string }>).map((ev, i) => (
-                      <div key={i} className="flex items-center justify-between p-2 rounded bg-surface border border-border">
-                        <span className="flex items-center gap-1.5 font-medium text-foreground">
-                          <LogIn className="size-3.5 text-primary" /> {ev.terminal || `Pointage ${i + 1}`}
-                        </span>
-                        <span className="font-mono font-bold">{ev.time?.slice(0, 5) || "-"}</span>
+                <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
+                  <RotateCcw className="size-4 animate-spin mx-auto text-primary" />
+                  <p>Interrogation des badgeuses et synchronisation des pointages...</p>
+                </div>
+              ) : timelineEvents.length > 0 ? (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {(timelineEvents as Array<{
+                    id?: string;
+                    heure?: string;
+                    jour?: string;
+                    label?: string;
+                    type?: string;
+                    color?: string;
+                    lieu?: string;
+                    appareil?: string;
+                  }>).map((ev, i) => (
+                    <div
+                      key={ev.id || i}
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-border hover:bg-muted/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={cn(
+                            "flex size-7 items-center justify-center rounded-md text-xs font-bold shrink-0",
+                            ev.type === "entree"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                              : ev.type === "sortie"
+                              ? "bg-red-500/15 text-red-700 dark:text-red-400"
+                              : "bg-indigo-500/15 text-indigo-700 dark:text-indigo-400"
+                          )}
+                        >
+                          {ev.type === "entree" ? (
+                            <LogIn className="size-3.5" />
+                          ) : (
+                            <LogOut className="size-3.5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-foreground">{ev.label}</p>
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Tablet className="size-3" /> {ev.appareil || "Badgeuse principale"}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="size-3" /> {ev.lieu || "Site OCP"}
+                            </span>
+                          </p>
+                        </div>
                       </div>
-                    ))
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between p-2 rounded bg-surface border border-border">
-                        <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
-                          <LogIn className="size-3.5" /> Entrée de service ({formatDateFr(selectedRow.dateEntree)})
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-sm text-foreground tabular-nums">
+                          {ev.heure ? ev.heure.slice(0, 5) : "-"}
                         </span>
-                        <span className="font-mono font-bold">{selectedRow.heureEntree || "-"}</span>
+                        {ev.jour && (
+                          <p className="text-[10px] text-muted-foreground tabular-nums">
+                            {formatDateFr(ev.jour)}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between p-2 rounded bg-surface border border-border">
-                        <span className="flex items-center gap-1.5 font-medium text-red-600 dark:text-red-400">
-                          <LogOut className="size-3.5" /> Sortie de service ({formatDateFr(selectedRow.dateSortie)})
-                        </span>
-                        <span className="font-mono font-bold">
-                          {selectedRow.heureSortie || "-"}
-                          {selectedRow.isNightShift && " (+1)"}
-                        </span>
+                    </div>
+                  ))}
+                </div>
+              ) : selectedRow.heureEntree || selectedRow.heureSortie ? (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex size-7 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-600">
+                        <LogIn className="size-3.5" />
                       </div>
-                    </>
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Entrée de service enregistrée</p>
+                        <p className="text-[11px] text-muted-foreground">{formatDateFr(selectedRow.dateEntree)}</p>
+                      </div>
+                    </div>
+                    <span className="font-mono font-bold text-sm tabular-nums text-foreground">
+                      {selectedRow.heureEntree || "-"}
+                    </span>
+                  </div>
+                  {selectedRow.heureSortie && (
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-red-500/5 border border-red-500/20">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-7 items-center justify-center rounded-md bg-red-500/15 text-red-600">
+                          <LogOut className="size-3.5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-foreground">Sortie de service enregistrée</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {formatDateFr(selectedRow.dateSortie)}
+                            {selectedRow.isNightShift && " (+1 jour)"}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-mono font-bold text-sm tabular-nums text-foreground">
+                        {selectedRow.heureSortie}
+                      </span>
+                    </div>
                   )}
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-muted/20 border border-border text-center text-xs text-muted-foreground">
+                  <AlertTriangle className="size-5 mx-auto mb-1 text-amber-500" />
+                  Aucun pointage physique n'a été enregistré pour cet agent sur cette journée.
                 </div>
               )}
             </div>
 
-            <div className="p-3 border-t border-border flex justify-end bg-muted/20">
-              <Button variant="outline" onClick={() => setSelectedRow(null)} className="h-8 text-xs">
+            {/* Pied de modal */}
+            <div className="p-3 border-t border-border flex items-center justify-between bg-muted/20">
+              <span className="text-[11px] text-muted-foreground">
+                Données synchronisées en temps réel depuis ZKBio CVAccess.
+              </span>
+              <Button variant="outline" onClick={() => setSelectedRow(null)} className="h-8 text-xs font-semibold">
                 Fermer
               </Button>
             </div>

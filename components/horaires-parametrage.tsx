@@ -388,17 +388,17 @@ export function HorairesParametrage() {
           </Button>
         </div>
 
-        <div className="overflow-x-auto w-full">
-          <table className="w-full border-collapse text-left text-xs sm:text-sm">
+        <div className="w-full overflow-hidden">
+          <table className="w-full border-collapse text-left text-xs sm:text-sm table-fixed">
             <thead className="bg-muted text-xs text-muted-foreground">
               <tr>
-                <th className="px-3 py-2.5 font-medium">Code</th>
-                <th className="px-3 py-2.5 font-medium">Libellé</th>
-                <th className="px-3 py-2.5 font-medium text-center">Début</th>
-                <th className="px-3 py-2.5 font-medium text-center">Fin</th>
-                <th className="px-3 py-2.5 font-medium text-center">Type de poste</th>
-                <th className="px-3 py-2.5 font-medium">Description</th>
-                <th className="px-3 py-2.5 font-medium text-center">Actions</th>
+                <th className="px-3 py-2.5 font-medium w-[12%]">Code</th>
+                <th className="px-3 py-2.5 font-medium w-[18%]">Libellé</th>
+                <th className="px-3 py-2.5 font-medium text-center w-[10%]">Début</th>
+                <th className="px-3 py-2.5 font-medium text-center w-[10%]">Fin</th>
+                <th className="px-3 py-2.5 font-medium text-center w-[16%]">Type de poste</th>
+                <th className="px-3 py-2.5 font-medium w-[22%]">Description</th>
+                <th className="px-3 py-2.5 font-medium text-center w-[12%]">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -479,8 +479,8 @@ export function HorairesParametrage() {
                       </td>
 
                       {/* Description */}
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-xs truncate" title={item.description}>
-                        {item.description || "-"}
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground truncate" title={item.description}>
+                        <span className="truncate block">{item.description || "-"}</span>
                       </td>
 
                       {/* Actions */}
