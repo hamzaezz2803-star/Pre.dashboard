@@ -2,7 +2,6 @@ import { formatDateFr, formatDurationLong } from "./dates";
 import { downloadBlob, loadLogoPng } from "./export-utils";
 
 const GREEN_OCP = "FF0F6B4F";
-const GREEN_BG = "FFE8F3EE";
 const ZEBRA_ROW = "FFF8FAF9";
 const BORDER_COLOR = "FFD5DDD9";
 
