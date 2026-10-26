@@ -3,27 +3,19 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   CalendarClock,
-  Clock,
   Search,
   RotateCcw,
   FileSpreadsheet,
   FileText,
   Moon,
   Sun,
-  AlertTriangle,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  Users,
   Info,
   History,
   X,
   LogIn,
   LogOut,
-  MapPin,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -84,24 +76,6 @@ const STATUT_STYLES: Record<string, { bg: string; text: string; dot: string }> =
     bg: "bg-slate-500/10 border-slate-500/20",
     text: "text-slate-600 dark:text-slate-400",
     dot: "bg-slate-400 dark:bg-slate-500",
-  },
-};
-
-const HORAIRE_BADGES: Record<string, { bg: string; text: string; icon: typeof Sun }> = {
-  H001: {
-    bg: "bg-amber-500/15 border-amber-500/30",
-    text: "text-amber-700 dark:text-amber-300",
-    icon: Sun,
-  },
-  H002: {
-    bg: "bg-orange-500/15 border-orange-500/30",
-    text: "text-orange-700 dark:text-orange-300",
-    icon: Sun,
-  },
-  H003: {
-    bg: "bg-indigo-500/15 border-indigo-500/30",
-    text: "text-indigo-700 dark:text-indigo-300",
-    icon: Moon,
   },
 };
 
@@ -171,8 +145,35 @@ export function HorairesSuivi() {
   }, [debut, fin, departement, recherche, horaireFilter, statutFilter]);
 
   useEffect(() => {
-    chargerDonnees();
-  }, [chargerDonnees]);
+    let active = true;
+    const qs = new URLSearchParams();
+    if (debut) qs.set("debut", debut);
+    if (fin) qs.set("fin", fin);
+    if (departement && departement !== "all") qs.set("departement", departement);
+    if (recherche) qs.set("personnel", recherche);
+    if (horaireFilter && horaireFilter !== "all") qs.set("horaire", horaireFilter);
+    if (statutFilter && statutFilter !== "all") qs.set("statut", statutFilter);
+
+    fetch(`/api/horaires/suivi?${qs.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data) {
+          setRows(data.rows || []);
+          if (data.horaires) setConfiguredHoraires(data.horaires);
+          setPage(1);
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Erreur inattendue");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [debut, fin, departement, recherche, horaireFilter, statutFilter]);
 
   // Statistiques calculées
   const stats = useMemo(() => {
@@ -524,7 +525,6 @@ export function HorairesSuivi() {
                 </tr>
               ) : (
                 paginatedRows.map((r, idx) => {
-                  const badgeHoraire = HORAIRE_BADGES[r.horaire?.code];
                   const styleStatut = STATUT_STYLES[r.statut] || STATUT_STYLES["Horaire non défini"];
 
                   return (
@@ -637,7 +637,6 @@ export function HorairesSuivi() {
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
                 className="h-7 px-2"
@@ -646,7 +645,6 @@ export function HorairesSuivi() {
               </Button>
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
                 className="h-7 px-2"

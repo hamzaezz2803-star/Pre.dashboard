@@ -3,18 +3,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   AlertTriangle,
-  Clock,
   Search,
   RotateCcw,
   FileSpreadsheet,
   FileText,
-  Filter,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   ChevronLeft,
   ChevronRight,
-  ShieldAlert,
   ArrowRight,
   UserX,
   ClockAlert,
@@ -23,8 +19,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
-import { currentMonthRange, formatDateFr, formatDurationLong } from "@/lib/dates";
+import { currentMonthRange, formatDateFr } from "@/lib/dates";
 import { cn } from "@/lib/utils";
+
+interface RawSuiviRow {
+  empCode: string | number;
+  nomComplet: string;
+  deptName: string;
+  dateService: string;
+  horaire?: { code?: string; libelle?: string; heureDebut?: string };
+  heureEntree?: string | null;
+  heureSortie?: string | null;
+  statut: string;
+}
 
 interface AnomalieItem {
   id: string;
@@ -89,6 +96,90 @@ export function HorairesAnomalies() {
       .catch(() => {});
   }, []);
 
+  const analyserDonnees = useCallback((rows: RawSuiviRow[]) => {
+    const anomaliesList: AnomalieItem[] = [];
+
+    rows.forEach((r, idx) => {
+      const id = `${r.empCode}_${r.dateService}_${idx}`;
+      const horaireNom = r.horaire?.libelle || "Non défini";
+
+      // 1. Absence
+      if (r.statut === "Absent" || (!r.heureEntree && !r.heureSortie)) {
+        anomaliesList.push({
+          id: `${id}_abs`,
+          empCode: r.empCode,
+          nomComplet: r.nomComplet,
+          deptName: r.deptName,
+          dateService: r.dateService,
+          horaire: horaireNom,
+          heureEntree: null,
+          heureSortie: null,
+          typeAnomalie: "absence",
+          libelleAnomalie: "Absence constatée",
+          gravite: "haute",
+          explication: "Aucun pointage détecté sur le créneau de service planifié.",
+          actionRecommandee: "Justificatif d'absence ou régularisation RH requise",
+        });
+      }
+      // 2. Retard
+      else if (r.statut === "Retard") {
+        anomaliesList.push({
+          id: `${id}_ret`,
+          empCode: r.empCode,
+          nomComplet: r.nomComplet,
+          deptName: r.deptName,
+          dateService: r.dateService,
+          horaire: horaireNom,
+          heureEntree: r.heureEntree || null,
+          heureSortie: r.heureSortie || null,
+          typeAnomalie: "retard",
+          libelleAnomalie: "Retard à la prise de poste",
+          gravite: "moyenne",
+          explication: `Entrée enregistrée à ${r.heureEntree} (horaire prévu : ${r.horaire?.heureDebut || "08:00"}).`,
+          actionRecommandee: "Validation par le responsable d'exploitation",
+        });
+      }
+      // 3. Sortie manquante ou pointage incomplet
+      else if (r.statut === "Pointage incomplet" || (r.heureEntree && !r.heureSortie)) {
+        anomaliesList.push({
+          id: `${id}_sm`,
+          empCode: r.empCode,
+          nomComplet: r.nomComplet,
+          deptName: r.deptName,
+          dateService: r.dateService,
+          horaire: horaireNom,
+          heureEntree: r.heureEntree || null,
+          heureSortie: null,
+          typeAnomalie: "sortie_manquante",
+          libelleAnomalie: "Sortie non enregistrée",
+          gravite: "moyenne",
+          explication: "L'employé a badgé à l'entrée mais aucune sortie n'a été saisie sur badgeuse.",
+          actionRecommandee: "Vérifier badgeuse sortie ou déclaration manuelle",
+        });
+      }
+      // 4. Horaire non reconnu / non défini
+      else if (r.horaire?.code === "NON_DEFINI" || r.statut === "Horaire non défini") {
+        anomaliesList.push({
+          id: `${id}_hnr`,
+          empCode: r.empCode,
+          nomComplet: r.nomComplet,
+          deptName: r.deptName,
+          dateService: r.dateService,
+          horaire: "Non défini",
+          heureEntree: r.heureEntree || null,
+          heureSortie: r.heureSortie || null,
+          typeAnomalie: "horaire_non_reconnu",
+          libelleAnomalie: "Horaire non reconnu",
+          gravite: "faible",
+          explication: `Pointages ${r.heureEntree} - ${r.heureSortie} hors des créneaux H001, H002, H003.`,
+          actionRecommandee: "Paramétrer un nouvel horaire correspondant",
+        });
+      }
+    });
+
+    return anomaliesList;
+  }, []);
+
   // Chargement des données brutes et détection des anomalies
   const chargerAnomalies = useCallback(async () => {
     setLoading(true);
@@ -105,85 +196,7 @@ export function HorairesAnomalies() {
       if (!res.ok) throw new Error(data.error || "Erreur de chargement des données");
 
       const rows = data.rows || [];
-      const anomaliesList: AnomalieItem[] = [];
-
-      rows.forEach((r: any, idx: number) => {
-        const id = `${r.empCode}_${r.dateService}_${idx}`;
-        const horaireNom = r.horaire?.libelle || "Non défini";
-
-        // 1. Absence
-        if (r.statut === "Absent" || (!r.heureEntree && !r.heureSortie)) {
-          anomaliesList.push({
-            id: `${id}_abs`,
-            empCode: r.empCode,
-            nomComplet: r.nomComplet,
-            deptName: r.deptName,
-            dateService: r.dateService,
-            horaire: horaireNom,
-            heureEntree: null,
-            heureSortie: null,
-            typeAnomalie: "absence",
-            libelleAnomalie: "Absence constatée",
-            gravite: "haute",
-            explication: "Aucun pointage détecté sur le créneau de service planifié.",
-            actionRecommandee: "Justificatif d'absence ou régularisation RH requise",
-          });
-        }
-        // 2. Retard
-        else if (r.statut === "Retard") {
-          anomaliesList.push({
-            id: `${id}_ret`,
-            empCode: r.empCode,
-            nomComplet: r.nomComplet,
-            deptName: r.deptName,
-            dateService: r.dateService,
-            horaire: horaireNom,
-            heureEntree: r.heureEntree,
-            heureSortie: r.heureSortie,
-            typeAnomalie: "retard",
-            libelleAnomalie: "Retard à la prise de poste",
-            gravite: "moyenne",
-            explication: `Entrée enregistrée à ${r.heureEntree} (horaire prévu : ${r.horaire?.heureDebut || "08:00"}).`,
-            actionRecommandee: "Validation par le responsable d'exploitation",
-          });
-        }
-        // 3. Sortie manquante ou pointage incomplet
-        else if (r.statut === "Pointage incomplet" || (r.heureEntree && !r.heureSortie)) {
-          anomaliesList.push({
-            id: `${id}_sm`,
-            empCode: r.empCode,
-            nomComplet: r.nomComplet,
-            deptName: r.deptName,
-            dateService: r.dateService,
-            horaire: horaireNom,
-            heureEntree: r.heureEntree,
-            heureSortie: null,
-            typeAnomalie: "sortie_manquante",
-            libelleAnomalie: "Sortie non enregistrée",
-            gravite: "moyenne",
-            explication: "L'employé a badgé à l'entrée mais aucune sortie n'a été saisie sur badgeuse.",
-            actionRecommandee: "Vérifier badgeuse sortie ou déclaration manuelle",
-          });
-        }
-        // 4. Horaire non reconnu / non défini
-        else if (r.horaire?.code === "NON_DEFINI" || r.statut === "Horaire non défini") {
-          anomaliesList.push({
-            id: `${id}_hnr`,
-            empCode: r.empCode,
-            nomComplet: r.nomComplet,
-            deptName: r.deptName,
-            dateService: r.dateService,
-            horaire: "Non défini",
-            heureEntree: r.heureEntree,
-            heureSortie: r.heureSortie,
-            typeAnomalie: "horaire_non_reconnu",
-            libelleAnomalie: "Horaire non reconnu",
-            gravite: "faible",
-            explication: `Pointages ${r.heureEntree} - ${r.heureSortie} hors des créneaux H001, H002, H003.`,
-            actionRecommandee: "Paramétrer un nouvel horaire correspondant",
-          });
-        }
-      });
+      const anomaliesList = analyserDonnees(rows);
 
       setAnomalies(anomaliesList);
       setPage(1);
@@ -192,11 +205,36 @@ export function HorairesAnomalies() {
     } finally {
       setLoading(false);
     }
-  }, [debut, fin, departement, recherche]);
+  }, [debut, fin, departement, recherche, analyserDonnees]);
 
   useEffect(() => {
-    chargerAnomalies();
-  }, [chargerAnomalies]);
+    let active = true;
+    const qs = new URLSearchParams();
+    if (debut) qs.set("debut", debut);
+    if (fin) qs.set("fin", fin);
+    if (departement && departement !== "all") qs.set("departement", departement);
+    if (recherche) qs.set("personnel", recherche);
+
+    fetch(`/api/horaires/suivi?${qs.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data) {
+          const list = analyserDonnees(data.rows || []);
+          setAnomalies(list);
+          setPage(1);
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Erreur inattendue");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [debut, fin, departement, recherche, analyserDonnees]);
 
   // Filtrage par type d'anomalie
   const filteredAnomalies = useMemo(() => {
@@ -582,7 +620,6 @@ export function HorairesAnomalies() {
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
                 className="h-7 px-2"
@@ -591,7 +628,6 @@ export function HorairesAnomalies() {
               </Button>
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
                 className="h-7 px-2"
