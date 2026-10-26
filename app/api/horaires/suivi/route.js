@@ -59,7 +59,7 @@ export async function GET(request) {
       WITH t AS (
         SELECT
           pers_person_pin::text AS pin,
-          att_date_time AS dt
+          att_datetime AS dt
         FROM att_transaction
       ),
       t_agg AS (
@@ -104,35 +104,50 @@ export async function GET(request) {
     const listeHoraires = await obtenirHoraires();
 
     // Map pour détection et regroupement visuel des services de nuit (J -> J+1)
-    // On repère pour un employé si une entrée tardive (>= 20:00) a une sortie le lendemain matin (<= 09:00)
+    // On repère pour un employé si une entrée tardive (>= 20:00) a une sortie le lendemain matin (<= 10:00)
     const rowKey = (emp, jour) => `${emp}_${jour}`;
     const rowsByEmpDate = new Map();
     for (const r of rawRows) {
       rowsByEmpDate.set(rowKey(r.emp_code, r.jour), r);
     }
 
-    const processedRows = [];
+    // Passe 1 : identifier les couples de service de nuit (J entrée tardive + J+1 sortie matin)
+    const nightShiftMap = new Map();
     const treatedAsNightCheckout = new Set();
+
+    for (const r of rawRows) {
+      const p1 = r.premier_pointage ? r.premier_pointage.slice(0, 5) : null;
+      if (!p1) continue;
+      const h = parseInt(p1.split(':')[0], 10);
+      if (h >= 20) {
+        const currentDay = new Date(r.jour + 'T00:00:00Z');
+        const nextDay = new Date(currentDay);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+        const nextDayStr = nextDay.toISOString().split('T')[0];
+        const nextDayRow = rowsByEmpDate.get(rowKey(r.emp_code, nextDayStr));
+        if (nextDayRow && nextDayRow.premier_pointage) {
+          const hNext = parseInt(nextDayRow.premier_pointage.slice(0, 5).split(':')[0], 10);
+          if (hNext <= 10 && Number(nextDayRow.nb_pointages || 1) <= 2) {
+            nightShiftMap.set(rowKey(r.emp_code, r.jour), { nextDayStr, nextDayRow });
+            treatedAsNightCheckout.add(rowKey(r.emp_code, nextDayStr));
+          }
+        }
+      }
+    }
+
+    const processedRows = [];
 
     for (let i = 0; i < rawRows.length; i++) {
       const r = rawRows[i];
+
+      // Si ce pointage est la sortie matinale d'un service de nuit commencé la veille,
+      // il a été unifié sur la date de service initiale
+      if (treatedAsNightCheckout.has(rowKey(r.emp_code, r.jour))) {
+        continue;
+      }
+
       const p1 = r.premier_pointage ? r.premier_pointage.slice(0, 5) : null;
       const p2 = r.dernier_pointage ? r.dernier_pointage.slice(0, 5) : null;
-
-      // Calcul date du lendemain
-      const currentDay = new Date(r.jour + 'T00:00:00Z');
-      const nextDay = new Date(currentDay);
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      const nextDayStr = nextDay.toISOString().split('T')[0];
-
-      const nextDayRow = rowsByEmpDate.get(rowKey(r.emp_code, nextDayStr));
-
-      // Cas Service de nuit : entrée tardive (>= 20:00) et pointage le lendemain matin (<= 09:00)
-      const isNightEntry = p1 && parseInt(p1.split(':')[0], 10) >= 20;
-      const nextHasMorningExit =
-        nextDayRow &&
-        nextDayRow.premier_pointage &&
-        parseInt(nextDayRow.premier_pointage.split(':')[0], 10) <= 9;
 
       let horaire = determinerHoraireDynamique(p1, p2, listeHoraires);
       let dateEntree = r.jour;
@@ -143,11 +158,12 @@ export async function GET(request) {
       let isNightShift = false;
       let nightShiftBadge = null;
 
-      if (isNightEntry && nextHasMorningExit) {
+      const nightData = nightShiftMap.get(rowKey(r.emp_code, r.jour));
+      if (nightData) {
         // Regroupement visuel sur la journée de service de début
         isNightShift = true;
-        dateSortie = nextDayStr;
-        heureSortie = (nextDayRow.dernier_pointage || nextDayRow.premier_pointage).slice(0, 5);
+        dateSortie = nightData.nextDayStr;
+        heureSortie = (nightData.nextDayRow.dernier_pointage || nightData.nextDayRow.premier_pointage).slice(0, 5);
         horaire = {
           code: 'H003',
           nom: 'Nuit',
@@ -159,12 +175,11 @@ export async function GET(request) {
         };
 
         // Calcul durée traversant minuit
-        const [hE, mE] = heureEntree.split(':').map(Number);
-        const [hS, mS] = heureSortie.split(':').map(Number);
+        const [hE, mE] = (heureEntree || '22:00').split(':').map(Number);
+        const [hS, mS] = (heureSortie || '06:00').split(':').map(Number);
         const diffMinutes = (24 * 60 - (hE * 60 + mE)) + (hS * 60 + mS);
         dureeMinutes = diffMinutes > 0 ? diffMinutes : (r.temps_presence_min || 480);
         nightShiftBadge = 'Nuit (J+1)';
-        treatedAsNightCheckout.add(rowKey(r.emp_code, nextDayStr));
       } else if (horaire.estNuit) {
         isNightShift = true;
         nightShiftBadge = 'Nuit';
@@ -173,6 +188,8 @@ export async function GET(request) {
       // Détermination du statut dynamique
       let statut = 'Présent';
       if (!p1 && !p2) {
+        statut = 'Absent';
+      } else if (r.statut_presence && r.statut_presence.toLowerCase().includes('absent') && (!r.temps_presence_min || Number(r.temps_presence_min) === 0)) {
         statut = 'Absent';
       } else if (p1 && (!p2 || p1 === p2) && !isNightShift) {
         statut = 'Pointage incomplet';
