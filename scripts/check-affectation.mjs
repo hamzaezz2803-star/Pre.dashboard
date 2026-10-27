@@ -2,18 +2,18 @@ import { targetPool } from '../lib/db.js';
 
 async function check() {
   const trigs = await targetPool.query(`
-    SELECT trigger_name, event_manipulation, action_statement, action_timing
+    SELECT trigger_name, event_manipulation, event_object_table, action_statement
     FROM information_schema.triggers
-    WHERE event_object_table = 'employes_affectation_dynamique'
   `);
-  console.log('TRIGGERS:', trigs.rows);
+  console.log('ALL TRIGGERS:', trigs.rows);
 
-  const constr = await targetPool.query(`
-    SELECT conname, contype, pg_get_constraintdef(oid)
-    FROM pg_constraint
-    WHERE conrelid = 'employes_affectation_dynamique'::regclass
+  const t2 = await targetPool.query(`
+    SELECT column_name, data_type
+    FROM information_schema.columns
+    WHERE table_name = 'affectations_horaires_dynamiques'
   `);
-  console.log('CONSTRAINTS:', constr.rows);
+  console.log('affectations_horaires_dynamiques COLS:', t2.rows);
+
   process.exit(0);
 }
 check();
