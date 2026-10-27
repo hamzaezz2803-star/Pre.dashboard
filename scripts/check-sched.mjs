@@ -1,4 +1,4 @@
-import { sourcePool, targetPool } from './lib/db.js';
+import { sourcePool, targetPool } from '../lib/db.js';
 
 async function check() {
   try {
