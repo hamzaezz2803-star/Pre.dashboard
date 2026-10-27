@@ -84,8 +84,9 @@ export function AffectationHoraireDynamique() {
   const [employes, setEmployes] = useState<EmployeItem[]>([]);
   const [loadingEmployes, setLoadingEmployes] = useState(true);
 
-  // Sélections persistantes (ID de l'employé) - ne s'efface pas au changement de filtre
+  // Sélections persistantes (ID de l'employé = cvaccess_person_id) - ne s'efface pas au changement de filtre
   const [selectedEmployeIds, setSelectedEmployeIds] = useState<Set<string>>(new Set());
+  const [selectionLoaded, setSelectionLoaded] = useState(false);
   const [savingSelection, setSavingSelection] = useState(false);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
 
@@ -134,29 +135,46 @@ export function AffectationHoraireDynamique() {
     }
   }, []);
 
-  // 2. Charger les employés
-  const chargerEmployes = useCallback(async () => {
-    try {
-      setLoadingEmployes(true);
-      const params = new URLSearchParams();
-      if (selectedDeptId && selectedDeptId !== "all") {
-        params.append("deptId", selectedDeptId);
-      }
-      if (rechercheEmploye.trim()) {
-        params.append("q", rechercheEmploye.trim());
-      }
+  // 2. Charger les employés avec leur statut actif depuis PostgreSQL
+  const chargerEmployes = useCallback(
+    async (isRefresh = false) => {
+      try {
+        setLoadingEmployes(true);
+        const params = new URLSearchParams();
+        if (selectedDeptId && selectedDeptId !== "all") {
+          params.append("deptId", selectedDeptId);
+        }
+        if (rechercheEmploye.trim()) {
+          params.append("q", rechercheEmploye.trim());
+        }
 
-      const res = await fetch(`/api/affectation-horaire/employes?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEmployes(data.employes || []);
+        const res = await fetch(`/api/affectation-horaire/employes?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEmployes(data.employes || []);
+
+          // Initialisation de la sélection depuis la table employes_affectation_dynamique
+          // au tout premier chargement ou après enregistrement/synchronisation explicite
+          if (!selectionLoaded || isRefresh) {
+            if (Array.isArray(data.activeIds)) {
+              setSelectedEmployeIds(new Set(data.activeIds));
+            } else if (Array.isArray(data.employes)) {
+              const fromList = data.employes
+                .filter((emp: EmployeItem) => emp.actif)
+                .map((emp: EmployeItem) => emp.id);
+              setSelectedEmployeIds(new Set(fromList));
+            }
+            setSelectionLoaded(true);
+          }
+        }
+      } catch (e) {
+        console.error("Erreur chargement employés", e);
+      } finally {
+        setLoadingEmployes(false);
       }
-    } catch (e) {
-      console.error("Erreur chargement employés", e);
-    } finally {
-      setLoadingEmployes(false);
-    }
-  }, [selectedDeptId, rechercheEmploye]);
+    },
+    [selectedDeptId, rechercheEmploye, selectionLoaded]
+  );
 
   // 3. Charger les horaires officiels CVAccess (table cvaccess_horaires)
   const chargerCvHoraires = useCallback(async () => {
