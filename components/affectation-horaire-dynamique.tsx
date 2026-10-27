@@ -744,16 +744,30 @@ export function AffectationHoraireDynamique() {
 
                       {/* Statut Affectation dynamique */}
                       <td className="px-3 py-2.5 text-center">
-                        {isSelected ? (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-                            <CheckCircle2 className="size-3" />
-                            Activée
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground border border-border">
-                            Désactivée
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleEmploye(emp.id);
+                          }}
+                          className="inline-flex cursor-pointer transition-transform hover:scale-105"
+                          title={
+                            isSelected
+                              ? "Cliquer pour désactiver l'affectation dynamique"
+                              : "Cliquer pour activer l'affectation dynamique"
+                          }
+                        >
+                          {isSelected ? (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                              <CheckCircle2 className="size-3" />
+                              Activée
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground border border-border">
+                              Désactivée
+                            </span>
+                          )}
+                        </button>
                       </td>
                     </tr>
                   );
