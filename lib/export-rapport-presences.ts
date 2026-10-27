@@ -1,4 +1,4 @@
-import { downloadBlob } from "./export-utils";
+import { downloadBlob, loadLogoPng } from "./export-utils";
 
 export interface RapportPresenceRow {
   emp_id: string;
@@ -9,8 +9,12 @@ export interface RapportPresenceRow {
   departement?: string;
 }
 
+const GREEN_OCP = "FF0F6B4F";
+const BORDER_COLOR = "FFD5DDD9";
+const ZEBRA_COLOR = "FFF8FAF9";
+
 /**
- * Génère et télécharge le fichier Excel du Rapport des Présences.
+ * Génère et télécharge le fichier Excel du Rapport des Présences aux couleurs officielles OCP.
  */
 export async function exportRapportPresenceExcel(
   rows: RapportPresenceRow[],
@@ -19,7 +23,7 @@ export async function exportRapportPresenceExcel(
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "OCP Phosboucraâ - Pointage System";
+  wb.creator = "OCP Phosboucraâ";
 
   const ws = wb.addWorksheet("Rapport des Présences", {
     views: [{ state: "frozen", ySplit: 5, showGridLines: true }],
@@ -34,24 +38,24 @@ export async function exportRapportPresenceExcel(
     { header: "Horaire Affecté", key: "horaire_affecte", width: 28 },
   ];
 
-  // En-tête principal stylisé
+  // En-tête principal OCP Phosboucraâ
   ws.getRow(1).height = 30;
   ws.mergeCells(1, 1, 1, 4);
   const titleCell = ws.getCell(1, 1);
-  titleCell.value = "PS  ·  Rapport des Présences";
-  titleCell.font = { name: "Arial", size: 16, bold: true, color: { argb: "FF003566" } };
+  titleCell.value = "OCP Phosboucraâ  ·  Rapport des Présences";
+  titleCell.font = { name: "Arial", size: 15, bold: true, color: { argb: GREEN_OCP } };
   titleCell.alignment = { vertical: "middle", horizontal: "left" };
 
   // Sous-titre Période
   ws.getRow(2).height = 20;
   ws.mergeCells(2, 1, 2, 4);
   const periodCell = ws.getCell(2, 1);
-  periodCell.value = `Période : Du ${debut || "Début"} Au ${fin || "Fin"}  ·  Total : ${rows.length} pointage(s)`;
+  periodCell.value = `Période : Du ${debut || "Début"} Au ${fin || "Fin"}  ·  Total : ${rows.length} enregistrement(s)`;
   periodCell.font = { name: "Arial", size: 10, italic: true, color: { argb: "FF475569" } };
   periodCell.alignment = { vertical: "middle", horizontal: "left" };
 
   // Ligne vide
-  ws.getRow(3).height = 10;
+  ws.getRow(3).height = 8;
 
   // Ligne d'en-tête du tableau (Ligne 4)
   const headerRow = ws.getRow(4);
@@ -63,17 +67,17 @@ export async function exportRapportPresenceExcel(
     cell.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF004E92" },
+      fgColor: { argb: GREEN_OCP },
     };
     cell.alignment = {
       vertical: "middle",
       horizontal: colNum === 1 || colNum === 3 ? "center" : "left",
     };
     cell.border = {
-      top: { style: "thin", color: { argb: "FFCBD5E1" } },
-      bottom: { style: "medium", color: { argb: "FF002855" } },
-      left: { style: "thin", color: { argb: "FFCBD5E1" } },
-      right: { style: "thin", color: { argb: "FFCBD5E1" } },
+      top: { style: "thin", color: { argb: BORDER_COLOR } },
+      bottom: { style: "medium", color: { argb: "FF094A36" } },
+      left: { style: "thin", color: { argb: BORDER_COLOR } },
+      right: { style: "thin", color: { argb: BORDER_COLOR } },
     };
   });
 
@@ -83,7 +87,7 @@ export async function exportRapportPresenceExcel(
     row.height = 22;
 
     const isEven = idx % 2 === 0;
-    const bgArgb = isEven ? "FFFFFFFF" : "FFF1F5F9";
+    const bgArgb = isEven ? "FFFFFFFF" : ZEBRA_COLOR;
 
     row.eachCell((cell, colNum) => {
       cell.font = { name: "Arial", size: 10, color: { argb: "FF0F172A" } };
@@ -104,7 +108,7 @@ export async function exportRapportPresenceExcel(
       };
 
       if (colNum === 1) {
-        cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF004E92" } };
+        cell.font = { name: "Arial", size: 10, bold: true, color: { argb: GREEN_OCP } };
       }
     });
   });
@@ -118,7 +122,7 @@ export async function exportRapportPresenceExcel(
 }
 
 /**
- * Génère et télécharge le fichier PDF du Rapport des Présences.
+ * Génère et télécharge le fichier PDF du Rapport des Présences aux couleurs OCP.
  */
 export async function exportRapportPresencePdf(
   rows: RapportPresenceRow[],
@@ -130,28 +134,39 @@ export async function exportRapportPresencePdf(
 
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   const margin = 36;
+  const greenOcp: [number, number, number] = [15, 107, 79]; // #0f6b4f
 
-  // En-tête : Titre stylisé bleu
+  // Logo OCP si disponible
+  const logo = await loadLogoPng();
+  let textX = margin;
+  if (logo) {
+    const h = 38;
+    const w = h * (logo.width / logo.height);
+    doc.addImage(logo.dataUrl, "PNG", margin, 24, w, h);
+    textX = margin + w + 14;
+  }
+
+  // En-tête : Titre vert OCP
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(0, 53, 102); // #003566
-  doc.text("PS  ·  Rapport des Présences", margin, 45);
+  doc.setFontSize(18);
+  doc.setTextColor(...greenOcp);
+  doc.text("Rapport des Présences", textX, 42);
 
   // Sous-titre Période et Métadonnées
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(71, 85, 105);
   doc.text(
     `Période : Du ${debut || "Début"} Au ${fin || "Fin"}  ·  Édité le ${new Date().toLocaleDateString("fr-FR")} à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`,
-    margin,
-    62
+    textX,
+    58
   );
-  doc.text(`Total : ${rows.length} enregistrement(s) trouvé(s)`, margin, 75);
+  doc.text(`Total : ${rows.length} pointage(s) enregistré(s)`, textX, 70);
 
-  // Ligne de séparation élégante
-  doc.setDrawColor(0, 78, 146);
-  doc.setLineWidth(1.5);
-  doc.line(margin, 82, doc.internal.pageSize.getWidth() - margin, 82);
+  // Ligne de séparation verte
+  doc.setDrawColor(...greenOcp);
+  doc.setLineWidth(1.2);
+  doc.line(margin, 78, doc.internal.pageSize.getWidth() - margin, 78);
 
   // Données du tableau
   const tableData = rows.map((r) => [
@@ -162,13 +177,13 @@ export async function exportRapportPresencePdf(
   ]);
 
   autoTable(doc, {
-    startY: 92,
+    startY: 88,
     margin: { left: margin, right: margin, bottom: 40 },
     head: [["ID", "Nom Employé", "Heure de Pointage", "Horaire Affecté"]],
     body: tableData,
     theme: "striped",
     headStyles: {
-      fillColor: [0, 78, 146], // #004e92
+      fillColor: greenOcp,
       textColor: [255, 255, 255],
       fontStyle: "bold",
       fontSize: 9,
@@ -185,21 +200,19 @@ export async function exportRapportPresencePdf(
       font: "helvetica",
       fontSize: 8.5,
       cellPadding: 5,
-      lineColor: [226, 232, 240],
+      lineColor: [213, 221, 217],
       lineWidth: 0.5,
       valign: "middle",
     },
     alternateRowStyles: {
-      fillColor: [241, 245, 249],
+      fillColor: [248, 250, 249],
     },
     didDrawPage: (data) => {
-      // Pied de page numéroté
-      const pageNumber = doc.internal.pages.length - 1;
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(148, 163, 184);
       doc.text(
-        `OCP Pointage - Phosboucraâ  |  Page ${data.pageNumber}`,
+        `OCP Phosboucraâ  |  Page ${data.pageNumber}`,
         margin,
         doc.internal.pageSize.getHeight() - 20
       );
