@@ -6,17 +6,13 @@ import {
   Search,
   FileSpreadsheet,
   FileText,
-  Calendar,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
   Sliders,
-  CheckCircle2,
   Clock,
   Sparkles,
-  Download,
 } from "lucide-react";
-import { PsLogo } from "@/components/ps-logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -27,7 +23,7 @@ import {
 } from "@/lib/export-rapport-presences";
 
 export function RapportPresences() {
-  // Dates par défaut : par exemple début du mois courant ou 30 derniers jours
+  // Dates par défaut : 30 derniers jours
   const aujourdhui = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const debutParDefaut = useMemo(() => {
     const d = new Date();
@@ -130,20 +126,25 @@ export function RapportPresences() {
   }, [rows, page]);
 
   return (
-    <div className="w-full space-y-6 px-4 py-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
+    <div className="w-full space-y-6 px-3 py-5 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       {/* ========================================================= */}
-      {/* EN-TÊTE EXACTEMENT COMME LE MODÈLE FOURNI */}
+      {/* EN-TÊTE PRINCIPAL HARMONISÉ AVEC LE THÈME DU PROJET OCP */}
       {/* ========================================================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3">
-          {/* Logo PS 3D métallique bleu */}
-          <PsLogo size={46} />
-
-          {/* Titre "Rapport des Présences" */}
+          <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+            <FileSpreadsheet className="size-6" />
+          </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#003566] dark:text-blue-400">
-              Rapport des Présences
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                Rapport des présences
+              </h1>
+              <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                <Sparkles className="size-3" />
+                OCP Pointage
+              </span>
+            </div>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Suivi officiel des pointages et des horaires affectés aux collaborateurs.
             </p>
@@ -151,9 +152,9 @@ export function RapportPresences() {
         </div>
 
         {/* Bouton retour vers Affectation dynamique */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
           <Link href="/affectation-horaire">
-            <Button variant="outline" className="h-9 text-xs">
+            <Button variant="outline" className="h-9 text-xs font-semibold">
               <Sliders className="size-3.5 mr-1.5" />
               Affectation dynamique
             </Button>
@@ -174,14 +175,12 @@ export function RapportPresences() {
                 <label className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap">
                   Du :
                 </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={dateDebut}
-                    onChange={(e) => setDateDebut(e.target.value)}
-                    className="h-9 px-3 py-1.5 rounded-md border border-border bg-surface text-xs sm:text-sm font-mono text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
-                  />
-                </div>
+                <input
+                  type="date"
+                  value={dateDebut}
+                  onChange={(e) => setDateDebut(e.target.value)}
+                  className="h-9 px-3 py-1.5 rounded-md border border-border bg-surface text-xs sm:text-sm font-mono text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                />
               </div>
 
               {/* Au */}
@@ -189,21 +188,20 @@ export function RapportPresences() {
                 <label className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap">
                   Au :
                 </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={dateFin}
-                    onChange={(e) => setDateFin(e.target.value)}
-                    className="h-9 px-3 py-1.5 rounded-md border border-border bg-surface text-xs sm:text-sm font-mono text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
-                  />
-                </div>
+                <input
+                  type="date"
+                  value={dateFin}
+                  onChange={(e) => setDateFin(e.target.value)}
+                  className="h-9 px-3 py-1.5 rounded-md border border-border bg-surface text-xs sm:text-sm font-mono text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                />
               </div>
 
-              {/* Bouton bleu Rechercher (style du modèle) */}
+              {/* Bouton Rechercher aux couleurs du projet */}
               <Button
                 type="submit"
+                variant="primary"
                 disabled={loading}
-                className="h-9 px-5 text-xs sm:text-sm font-semibold bg-[#004e92] hover:bg-[#003566] text-white shadow-xs"
+                className="h-9 px-5 text-xs sm:text-sm font-semibold shadow-xs"
               >
                 <Search className={cn("size-3.5 mr-1.5", loading && "animate-spin")} />
                 Rechercher
@@ -283,12 +281,12 @@ export function RapportPresences() {
       </Card>
 
       {/* ========================================================= */}
-      {/* TABLEAU DES PRÉSENCES (EXACTEMENT SELON LE MODÈLE) */}
+      {/* TABLEAU DES PRÉSENCES (4 COLONNES : ID, Nom Employé, Heure de Pointage, Horaire Affecté) */}
       {/* ========================================================= */}
       <Card className="border-border shadow-xs overflow-hidden bg-surface">
         <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-muted/30 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Clock className="size-4 text-[#004e92]" />
+            <Clock className="size-4 text-primary" />
             <span className="text-xs sm:text-sm font-bold text-foreground">
               Données de pointage et affectations
             </span>
@@ -308,12 +306,12 @@ export function RapportPresences() {
           </Button>
         </div>
 
-        {/* Tableau avec les 4 colonnes exactes de l'image */}
+        {/* Tableau avec les 4 colonnes exactes */}
         <div className="w-full overflow-x-auto">
           <table className="w-full border-collapse text-left text-xs sm:text-sm">
-            <thead className="bg-[#eef4fb] dark:bg-blue-950/40 text-xs font-bold text-[#003566] dark:text-blue-300 border-b border-border">
+            <thead className="bg-muted/60 text-xs font-semibold text-muted-foreground border-b border-border">
               <tr>
-                <th className="px-4 py-3 text-center w-20">ID</th>
+                <th className="px-4 py-3 text-center w-24">ID</th>
                 <th className="px-5 py-3">Nom Employé</th>
                 <th className="px-5 py-3 text-center">Heure de Pointage</th>
                 <th className="px-5 py-3">Horaire Affecté</th>
@@ -341,8 +339,8 @@ export function RapportPresences() {
                     <tr
                       key={`${item.emp_id}-${item.heure_pointage}-${idx}`}
                       className={cn(
-                        "transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-950/20",
-                        isEven ? "bg-surface" : "bg-muted/20"
+                        "transition-colors hover:bg-muted/40",
+                        isEven ? "bg-surface" : "bg-muted/15"
                       )}
                     >
                       {/* ID */}
@@ -369,8 +367,8 @@ export function RapportPresences() {
                             Horaire non défini
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                            <Clock className="size-3 text-blue-600 dark:text-blue-400" />
+                          <span className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                            <Clock className="size-3 text-primary" />
                             {item.horaire_affecte}
                           </span>
                         )}
