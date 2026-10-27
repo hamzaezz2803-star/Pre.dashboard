@@ -242,10 +242,10 @@ export function AffectationHoraireDynamique() {
         data.message ||
           "Synchronisation CVAccess réussie : départements, employés et horaires récents chargés."
       );
-      // Rechargement immédiat de l'ensemble des données
+      // Rechargement immédiat de l'ensemble des données avec réinitialisation depuis PostgreSQL
       await Promise.all([
         chargerDepartements(),
-        chargerEmployes(),
+        chargerEmployes(true),
         chargerCvHoraires(),
         chargerRegles(),
       ]);
@@ -301,23 +301,33 @@ export function AffectationHoraireDynamique() {
   const handleEnregistrerSelectionEmployes = async () => {
     setSavingSelection(true);
     setSelectionNotice(null);
+    setErrorMsg(null);
+    setSuccessMsg(null);
     try {
+      const activeList = Array.from(selectedEmployeIds);
       const res = await fetch("/api/affectation-horaire/enregistrer-employes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employesIds: Array.from(selectedEmployeIds),
+          activeIds: activeList,
         }),
       });
+
       const data = await res.json();
-      setSelectionNotice(
-        data.message ||
-          "En attente de connexion PostgreSQL : La table d'affectation dynamique des employés n'est pas encore créée au backend. La sélection est active en session locale."
-      );
-    } catch {
-      setSelectionNotice(
-        "En attente de connexion PostgreSQL : La sélection des employés a été mémorisée localement dans l'interface."
-      );
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || "Erreur lors de l'enregistrement dans PostgreSQL.");
+      }
+
+      // Confirmation de succès réel dans PostgreSQL
+      setSuccessMsg(data.message || "Sélection enregistrée avec succès dans PostgreSQL.");
+      setSelectionNotice(null);
+
+      // Recharger immédiatement depuis PostgreSQL pour confirmer la persistance réelle
+      await chargerEmployes(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur inattendue lors de l'enregistrement.";
+      setErrorMsg(`Échec de l'enregistrement PostgreSQL : ${msg}`);
+      setSelectionNotice(`Échec de l'enregistrement PostgreSQL : ${msg}`);
     } finally {
       setSavingSelection(false);
     }
