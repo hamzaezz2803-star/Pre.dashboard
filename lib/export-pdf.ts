@@ -1,6 +1,7 @@
 import type { PresenceRow } from "./types";
 import { formatDateFr, formatDurationLong } from "./dates";
 import { downloadBlob, loadLogoPng } from "./export-utils";
+import { formatStatut } from "./status";
 
 /** Génère et télécharge un PDF paysage A4 des lignes données. */
 export async function exportAttendanceToPdf(

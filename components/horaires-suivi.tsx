@@ -62,6 +62,16 @@ const STATUT_STYLES: Record<string, { bg: string; text: string; dot: string }> =
     text: "text-emerald-700 dark:text-emerald-400",
     dot: "bg-emerald-600 dark:bg-emerald-500",
   },
+  Terminé: {
+    bg: "bg-emerald-500/10 border-emerald-500/20",
+    text: "text-emerald-700 dark:text-emerald-400",
+    dot: "bg-emerald-600 dark:bg-emerald-500",
+  },
+  "En cours — sortie attendue": {
+    bg: "bg-blue-500/10 border-blue-500/20",
+    text: "text-blue-700 dark:text-blue-400",
+    dot: "bg-blue-600 dark:bg-blue-500",
+  },
   Retard: {
     bg: "bg-amber-500/10 border-amber-500/20",
     text: "text-amber-700 dark:text-amber-400",

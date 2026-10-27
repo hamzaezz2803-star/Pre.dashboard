@@ -140,6 +140,30 @@ export async function GET(request) {
     // Récupération des horaires configurés
     const listeHoraires = await obtenirHoraires();
 
+    // Lecture des affectations dynamiques officielles
+    const dynamicMap = new Map();
+    const treatedAsNightCheckout = new Set();
+    try {
+      const { rows: dynRows } = await getBiotimePool().query(
+        `SELECT a.*, p.pin, h.period_name
+         FROM affectations_horaires_dynamiques a
+         JOIN pers_person p ON p.id = a.cvaccess_person_id
+         LEFT JOIN cvaccess_horaires h ON h.cvaccess_horaire_id = a.cvaccess_horaire_id`
+      );
+      for (const d of dynRows) {
+        const dServ = d.date_service.toISOString().split('T')[0];
+        dynamicMap.set(`${d.pin}_${dServ}`, d);
+        if (d.fin_prevue && d.heure_sortie) {
+          const nextD = d.fin_prevue.toISOString().split('T')[0];
+          if (nextD > dServ) {
+            treatedAsNightCheckout.add(`${d.pin}_${nextD}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Suivi] Erreur lecture affectations dynamiques :', err?.message);
+    }
+
     // Map pour détection et regroupement visuel des services de nuit (J -> J+1)
     // On repère pour un employé si une entrée tardive (>= 20:00) a une sortie le lendemain matin (<= 10:00)
     const rowKey = (emp, jour) => `${emp}_${jour}`;
@@ -150,7 +174,6 @@ export async function GET(request) {
 
     // Passe 1 : identifier les couples de service de nuit (J entrée tardive + J+1 sortie matin)
     const nightShiftMap = new Map();
-    const treatedAsNightCheckout = new Set();
 
     for (const r of rawRows) {
       const p1 = r.premier_pointage ? r.premier_pointage.slice(0, 5) : null;
@@ -195,36 +218,69 @@ export async function GET(request) {
       let isNightShift = false;
       let nightShiftBadge = null;
 
-      const nightData = nightShiftMap.get(rowKey(r.emp_code, r.jour));
-      if (nightData) {
-        // Regroupement visuel sur la journée de service de début
-        isNightShift = true;
-        dateSortie = nightData.nextDayStr;
-        heureSortie = (nightData.nextDayRow.dernier_pointage || nightData.nextDayRow.premier_pointage).slice(0, 5);
-        horaire = {
-          code: 'H003',
-          nom: 'Nuit',
-          libelle: 'H003 Nuit',
-          heureDebut: '22:00',
-          heureFin: '06:00',
-          estNuit: true,
-          conforme: true,
-        };
+      const dynAff = dynamicMap.get(rowKey(r.emp_code, r.jour));
+      if (dynAff) {
+        if (dynAff.period_name) {
+          const isNight = dynAff.fin_prevue && dynAff.debut_prevu && new Date(dynAff.fin_prevue).toISOString().split('T')[0] > new Date(dynAff.date_service).toISOString().split('T')[0];
+          horaire = {
+            code: dynAff.period_name,
+            nom: dynAff.period_name,
+            libelle: dynAff.period_name,
+            heureDebut: dynAff.debut_prevu ? new Date(dynAff.debut_prevu).toISOString().slice(11, 16) : undefined,
+            heureFin: dynAff.fin_prevue ? new Date(dynAff.fin_prevue).toISOString().slice(11, 16) : undefined,
+            estNuit: isNight,
+            conforme: true,
+          };
+          if (isNight) {
+            isNightShift = true;
+            nightShiftBadge = 'Nuit (J+1)';
+            if (dynAff.heure_sortie) {
+              dateSortie = new Date(dynAff.heure_sortie).toISOString().split('T')[0];
+              heureSortie = new Date(dynAff.heure_sortie).toISOString().slice(11, 16);
+              dureeMinutes = Math.round((new Date(dynAff.heure_sortie).getTime() - new Date(dynAff.heure_entree).getTime()) / 60000);
+            }
+          }
+        }
+      } else {
+        const nightData = nightShiftMap.get(rowKey(r.emp_code, r.jour));
+        if (nightData) {
+          // Regroupement visuel sur la journée de service de début
+          isNightShift = true;
+          dateSortie = nightData.nextDayStr;
+          heureSortie = (nightData.nextDayRow.dernier_pointage || nightData.nextDayRow.premier_pointage).slice(0, 5);
+          horaire = {
+            code: 'H003',
+            nom: 'Nuit',
+            libelle: 'H003 Nuit',
+            heureDebut: '22:00',
+            heureFin: '06:00',
+            estNuit: true,
+            conforme: true,
+          };
 
-        // Calcul durée traversant minuit
-        const [hE, mE] = (heureEntree || '22:00').split(':').map(Number);
-        const [hS, mS] = (heureSortie || '06:00').split(':').map(Number);
-        const diffMinutes = (24 * 60 - (hE * 60 + mE)) + (hS * 60 + mS);
-        dureeMinutes = diffMinutes > 0 ? diffMinutes : (r.temps_presence_min || 480);
-        nightShiftBadge = 'Nuit (J+1)';
-      } else if (horaire.estNuit) {
-        isNightShift = true;
-        nightShiftBadge = 'Nuit';
+          // Calcul durée traversant minuit
+          const [hE, mE] = (heureEntree || '22:00').split(':').map(Number);
+          const [hS, mS] = (heureSortie || '06:00').split(':').map(Number);
+          const diffMinutes = (24 * 60 - (hE * 60 + mE)) + (hS * 60 + mS);
+          dureeMinutes = diffMinutes > 0 ? diffMinutes : (r.temps_presence_min || 480);
+          nightShiftBadge = 'Nuit (J+1)';
+        } else if (horaire.estNuit) {
+          isNightShift = true;
+          nightShiftBadge = 'Nuit';
+        }
       }
 
       // Détermination du statut dynamique
       let statut = 'Présent';
-      if (!p1 && !p2) {
+      if (dynAff) {
+        if (dynAff.statut === 'en_cours') {
+          statut = 'En cours — sortie attendue';
+        } else if (dynAff.statut === 'termine') {
+          statut = 'Terminé';
+        } else {
+          statut = dynAff.statut;
+        }
+      } else if (!p1 && !p2) {
         statut = 'Absent';
       } else if (r.statut_presence && r.statut_presence.toLowerCase().includes('absent') && (!r.temps_presence_min || Number(r.temps_presence_min) === 0)) {
         statut = 'Absent';
