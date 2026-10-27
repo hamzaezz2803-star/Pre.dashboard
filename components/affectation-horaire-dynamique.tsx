@@ -42,6 +42,7 @@ export interface EmployeItem {
   prenom: string;
   departement_id: string | null;
   departement: string;
+  actif?: boolean;
 }
 
 // --- Types pour les horaires officiels CVAccess ---
