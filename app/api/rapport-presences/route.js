@@ -24,50 +24,74 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Format de date invalide (YYYY-MM-DD attendu).' }, { status: 400 });
     }
 
-    const conditions = ['pj.premier_pointage IS NOT NULL'];
+    const conditions = ['pointage_timestamp IS NOT NULL'];
     const params = [];
 
     if (debut) {
       params.push(debut);
-      conditions.push(`COALESCE(a.date_service, pj.date_pointage) >= $${params.length}`);
+      conditions.push(`date_service >= $${params.length}`);
     }
 
     if (fin) {
       params.push(fin);
-      conditions.push(`COALESCE(a.date_service, pj.date_pointage) <= $${params.length}`);
+      conditions.push(`date_service <= $${params.length}`);
     }
 
     if (q) {
       params.push(`%${q}%`);
       const pIdx = `$${params.length}`;
       conditions.push(`(
-        p.pin ILIKE ${pIdx} OR 
-        pj.id ILIKE ${pIdx} OR 
-        p.last_name ILIKE ${pIdx} OR 
-        p.name ILIKE ${pIdx} OR 
-        pj.nom ILIKE ${pIdx} OR 
-        pj.prenom ILIKE ${pIdx} OR
-        (pj.nom || ' ' || pj.prenom) ILIKE ${pIdx}
+        emp_id ILIKE ${pIdx} OR 
+        nom_employe ILIKE ${pIdx}
       )`);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     const query = `
-      WITH combined AS (
+      WITH dyn_services AS (
         SELECT 
-          COALESCE(p.pin, pj.id) AS emp_id,
-          TRIM(CONCAT(COALESCE(p.last_name, pj.nom), ' ', COALESCE(p.name, pj.prenom))) AS nom_employe,
-          COALESCE(a.heure_entree, pj.premier_pointage) AS pointage_timestamp,
-          COALESCE(a.date_service, pj.date_pointage) AS date_service,
-          COALESCE(h.period_name, 'Horaire non défini') AS horaire_affecte,
-          COALESCE(d.name, pj.departement, 'Sans département') AS departement
-        FROM pointage_journalier pj
-        LEFT JOIN pers_person p ON p.pin = pj.id
-        LEFT JOIN affectations_horaires_dynamiques a ON a.cvaccess_person_id = p.id AND a.date_service = pj.date_pointage
+          p.pin::text AS emp_id,
+          TRIM(CONCAT(p.last_name, ' ', p.name))::text AS nom_employe,
+          a.heure_entree AS pointage_timestamp,
+          a.date_service AS date_service,
+          COALESCE(h.period_name, 'Horaire non défini')::text AS horaire_affecte,
+          COALESCE(d.name, 'Sans département')::text AS departement
+        FROM affectations_horaires_dynamiques a
+        JOIN pers_person p ON p.id = a.cvaccess_person_id
         LEFT JOIN cvaccess_horaires h ON h.cvaccess_horaire_id = a.cvaccess_horaire_id
         LEFT JOIN auth_department d ON d.id = p.auth_dept_id
-        ${whereClause}
+        WHERE a.heure_entree IS NOT NULL
+      ),
+      standard_services AS (
+        SELECT 
+          COALESCE(p.pin, pj.id)::text AS emp_id,
+          TRIM(CONCAT(COALESCE(p.last_name, pj.nom), ' ', COALESCE(p.name, pj.prenom)))::text AS nom_employe,
+          pj.premier_pointage AS pointage_timestamp,
+          pj.date_pointage AS date_service,
+          'Horaire non défini'::text AS horaire_affecte,
+          COALESCE(d.name, pj.departement, 'Sans département')::text AS departement
+        FROM pointage_journalier pj
+        LEFT JOIN pers_person p ON p.pin = pj.id
+        LEFT JOIN auth_department d ON d.id = p.auth_dept_id
+        WHERE pj.premier_pointage IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM affectations_horaires_dynamiques a 
+            WHERE a.cvaccess_person_id = p.id 
+              AND (
+                a.date_service = pj.date_pointage 
+                OR (
+                  a.date_service = pj.date_pointage - 1 
+                  AND a.fin_prevue::date = pj.date_pointage
+                  AND a.heure_sortie = pj.premier_pointage
+                )
+              )
+          )
+      ),
+      combined AS (
+        SELECT * FROM dyn_services
+        UNION ALL
+        SELECT * FROM standard_services
       )
       SELECT 
         emp_id,
@@ -77,6 +101,7 @@ export async function GET(request) {
         date_service::text,
         departement
       FROM combined
+      ${whereClause}
       ORDER BY pointage_timestamp DESC;
     `;
 

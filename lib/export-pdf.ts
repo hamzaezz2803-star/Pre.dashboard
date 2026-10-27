@@ -49,7 +49,9 @@ export async function exportAttendanceToPdf(
     r.dernierPointage || "-",
     String(r.nbPointages),
     formatDurationLong(r.tempsPresenceMin),
-    r.statutPresence || "-",
+    r.horaire && r.horaire !== "Horaire non défini"
+      ? `${formatStatut(r.statutPresence, r.nbPointages)} · ${r.horaire}`
+      : formatStatut(r.statutPresence, r.nbPointages),
   ]);
 
   autoTable(doc, {

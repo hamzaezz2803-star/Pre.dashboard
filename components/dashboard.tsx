@@ -39,6 +39,7 @@ interface ApiPresenceRow {
   nb_pointages: number | null;
   temps_presence_min: number | null;
   statut_presence: string | null;
+  horaire?: string | null;
 }
 
 interface ApiResponse {
@@ -157,6 +158,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
           nbPointages: Number(r.nb_pointages || 0),
           tempsPresenceMin: Number(r.temps_presence_min || 0),
           statutPresence: r.statut_presence || "",
+          horaire: r.horaire || null,
         }));
         setState({ status: "success", rows });
       } catch (err: unknown) {

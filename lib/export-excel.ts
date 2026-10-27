@@ -84,7 +84,9 @@ export async function exportAttendanceToExcel(
       r.dernierPointage || "-",
       r.nbPointages,
       formatDurationLong(r.tempsPresenceMin),
-      formatStatut(r.statutPresence, r.nbPointages),
+      r.horaire && r.horaire !== "Horaire non défini"
+        ? `${formatStatut(r.statutPresence, r.nbPointages)} · ${r.horaire}`
+        : formatStatut(r.statutPresence, r.nbPointages),
     ];
     values.forEach((v, i) => {
       const cell = row.getCell(i + 1);

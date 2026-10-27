@@ -16,13 +16,32 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const pin = searchParams.get('pin')?.trim();
     const date = searchParams.get('date')?.trim();
-    const dateFin = searchParams.get('date_fin')?.trim() || searchParams.get('dateFin')?.trim() || date;
+    let dateFin = searchParams.get('date_fin')?.trim() || searchParams.get('dateFin')?.trim() || date;
 
     if (!pin || !date) {
       return NextResponse.json(
         { error: 'Les paramètres pin et date sont requis.' },
         { status: 400 }
       );
+    }
+
+    // Si dateFin n'a pas été explicitement spécifié et qu'il s'agit d'un horaire de nuit
+    if (dateFin === date) {
+      try {
+        const nightCheck = await targetPool.query(
+          `SELECT a.fin_prevue::date AS date_fin
+           FROM affectations_horaires_dynamiques a
+           JOIN pers_person p ON p.id = a.cvaccess_person_id
+           WHERE p.pin::text = $1 AND a.date_service = $2::date AND a.fin_prevue::date > a.date_service
+           LIMIT 1`,
+          [pin, date]
+        );
+        if (nightCheck.rows.length > 0 && nightCheck.rows[0].date_fin) {
+          dateFin = nightCheck.rows[0].date_fin.toISOString().split('T')[0];
+        }
+      } catch (err) {
+        console.warn('[API Presence Timeline] Impossible de vérifier les horaires de nuit :', err?.message);
+      }
     }
 
     const { rows } = await targetPool.query(

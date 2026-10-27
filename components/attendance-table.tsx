@@ -251,26 +251,52 @@ export function AttendanceTable({
         header: "Statut",
         cell: (c) => {
           const statut = c.getValue<string | null>();
+          const horaire = c.row.original.horaire;
           const label = formatStatut(statut, c.row.original.nbPointages);
-          if (label === "-") return dash;
+          if (label === "-" && !horaire) return dash;
           const style = TON_STYLES[getStatutTon(statut)];
-          const tags = label.split(" · ");
+          const tags = label !== "-" ? label.split(" · ") : [];
 
           return (
             <div className="flex flex-wrap items-center gap-1">
-              {tags.map((tag, idx) => (
+              {tags.map((tag, idx) => {
+                const isEnCours = tag === "En cours — sortie attendue";
+                const isTermine = tag === "Terminé";
+                return (
+                  <span
+                    key={idx}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:text-[11px] font-medium leading-tight border max-w-full truncate",
+                      isEnCours
+                        ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20"
+                        : style.bg
+                    )}
+                    title={label}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "size-1.5 shrink-0 rounded-full",
+                        isEnCours
+                          ? "bg-blue-600 dark:bg-blue-400 animate-pulse"
+                          : isTermine
+                          ? "bg-emerald-600 dark:bg-emerald-400"
+                          : style.dot
+                      )}
+                    />
+                    <span className="truncate">{tag}</span>
+                  </span>
+                );
+              })}
+              {horaire && horaire !== "Horaire non défini" && (
                 <span
-                  key={idx}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:text-[11px] font-medium leading-tight border max-w-full truncate",
-                    style.bg
-                  )}
-                  title={label}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:text-[11px] font-medium leading-tight border border-primary/20 bg-primary/10 text-primary"
+                  title={`Horaire affecté : ${horaire}`}
                 >
-                  <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", style.dot)} />
-                  <span className="truncate">{tag}</span>
+                  <Clock className="size-2.5 text-primary" />
+                  <span className="truncate">{horaire}</span>
                 </span>
-              ))}
+              )}
             </div>
           );
         },
@@ -489,6 +515,11 @@ export function AttendanceTable({
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     {selectedTimelineRow.lastName} {selectedTimelineRow.firstName} · {formatDateFr(selectedTimelineRow.jour)}
+                    {selectedTimelineRow.horaire && selectedTimelineRow.horaire !== "Horaire non défini" && (
+                      <span className="ml-1.5 font-medium text-primary">
+                        · {selectedTimelineRow.horaire}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

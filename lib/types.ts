@@ -61,4 +61,5 @@ export interface PresenceRow {
   nbPointages: number;
   tempsPresenceMin: number;
   statutPresence: string;
+  horaire?: string | null;
 }

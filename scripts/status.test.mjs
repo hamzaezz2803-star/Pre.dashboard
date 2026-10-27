@@ -23,3 +23,17 @@ test("vide sans pointage, inconnus et doublons", () => {
   assert.equal(formatStatut(null, 0), "-");
   assert.equal(formatStatut("late,late,foo"), "Retard · foo");
 });
+
+test("en_cours et En cours — sortie attendue", () => {
+  assert.equal(formatStatut("en_cours"), "En cours — sortie attendue");
+  assert.equal(getStatutTon("en_cours"), "present");
+  assert.equal(formatStatut("En cours — sortie attendue"), "En cours — sortie attendue");
+  assert.equal(getStatutTon("En cours — sortie attendue"), "present");
+});
+
+test("termine et Terminé", () => {
+  assert.equal(formatStatut("termine"), "Terminé");
+  assert.equal(getStatutTon("termine"), "present");
+  assert.equal(formatStatut("Terminé"), "Terminé");
+  assert.equal(getStatutTon("Terminé"), "present");
+});
