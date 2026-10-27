@@ -115,6 +115,7 @@ export function AffectationHoraireDynamique() {
   // Messages globaux
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [syncingCvAccess, setSyncingCvAccess] = useState(false);
 
   // -------------------------------------------------------------
   // CHARGEMENT INITIAL DES DONNÉES
@@ -205,10 +206,38 @@ export function AffectationHoraireDynamique() {
     return () => clearTimeout(timer);
   }, [chargerEmployes]);
 
-  // Reset pagination when filter changes
-  useEffect(() => {
-    setPageEmployes(1);
-  }, [selectedDeptId, rechercheEmploye]);
+  // Déclenche la synchronisation depuis CVAccess (biosecurity-boot) vers ocp_pointage
+  const handleSyncCvAccess = async () => {
+    setSyncingCvAccess(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch("/api/affectation-horaire/sync", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || "Erreur lors de la synchronisation depuis CVAccess.");
+      }
+      setSuccessMsg(
+        data.message ||
+          "Synchronisation CVAccess réussie : départements, employés et horaires récents chargés."
+      );
+      // Rechargement immédiat de l'ensemble des données
+      await Promise.all([
+        chargerDepartements(),
+        chargerEmployes(),
+        chargerCvHoraires(),
+        chargerRegles(),
+      ]);
+    } catch (err: unknown) {
+      setErrorMsg(
+        err instanceof Error ? err.message : "Erreur de synchronisation avec CVAccess."
+      );
+    } finally {
+      setSyncingCvAccess(false);
+    }
+  };
 
   // -------------------------------------------------------------
   // GESTION SÉLECTION DES EMPLOYÉS (SECTION 1)
@@ -439,22 +468,21 @@ export function AffectationHoraireDynamique() {
           </div>
         </div>
 
-        {/* Bouton d'actualisation générale */}
-        <Button
-          variant="outline"
-          onClick={() => {
-            chargerEmployes();
-            chargerCvHoraires();
-            chargerRegles();
-          }}
-          disabled={loadingEmployes || loadingRegles || loadingCvHoraires}
-          className="h-9 text-xs self-start sm:self-auto"
-        >
-          <RotateCcw
-            className={cn("size-3.5 mr-1.5", (loadingEmployes || loadingRegles) && "animate-spin")}
-          />
-          Actualiser les données
-        </Button>
+        {/* Bouton d'actualisation depuis CVAccess */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="primary"
+            onClick={handleSyncCvAccess}
+            disabled={syncingCvAccess || loadingEmployes || loadingRegles || loadingCvHoraires}
+            className="h-9 text-xs self-start sm:self-auto font-semibold shadow-xs"
+            title="Synchronise les nouveaux départements, employés et horaires depuis CVAccess"
+          >
+            <RotateCcw
+              className={cn("size-3.5 mr-1.5", syncingCvAccess && "animate-spin")}
+            />
+            {syncingCvAccess ? "Synchronisation CVAccess..." : "Actualiser depuis CVAccess"}
+          </Button>
+        </div>
       </div>
 
       {/* Messages de succès ou d'erreur */}
@@ -510,7 +538,7 @@ export function AffectationHoraireDynamique() {
             </div>
           </div>
 
-          {/* Compteur et bouton enregistrer */}
+          {/* Compteur et boutons d'action */}
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-xs font-semibold text-foreground border border-border">
               <span className="size-2 rounded-full bg-primary" />
@@ -520,6 +548,18 @@ export function AffectationHoraireDynamique() {
                 {selectedEmployeIds.size > 1 ? "s" : ""}
               </span>
             </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSyncCvAccess}
+              disabled={syncingCvAccess || loadingEmployes}
+              className="h-9 text-xs"
+              title="Synchronise immédiatement les nouveaux départements et employés créés dans CVAccess"
+            >
+              <RotateCcw className={cn("size-3.5 mr-1.5", syncingCvAccess && "animate-spin")} />
+              {syncingCvAccess ? "Synchronisation CVAccess..." : "Actualiser depuis CVAccess"}
+            </Button>
 
             <Button
               type="button"
