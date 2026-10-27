@@ -18,6 +18,7 @@ import {
   Sliders,
   CalendarClock,
   AlertTriangle,
+  FileSpreadsheet,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,14 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: CalendarClock,
         allowedRoles: ["super_admin", "admin"],
         description: "Sélection employés & gestion des horaires dynamiques",
+      },
+      {
+        id: "rapport-presences",
+        label: "Rapport des présences",
+        href: "/rapport-presences",
+        icon: FileSpreadsheet,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Rapport officiel et export Excel / PDF",
       },
     ],
   },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
   Users,
   Clock,
@@ -23,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -497,13 +499,24 @@ export function AffectationHoraireDynamique() {
           </div>
         </div>
 
-        {/* Bouton d'actualisation depuis CVAccess */}
-        <div className="flex items-center gap-2">
+        {/* Boutons d'action en-tête */}
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          <Link href="/rapport-presences">
+            <Button
+              variant="outline"
+              className="h-9 text-xs font-semibold border-primary/30 text-primary hover:bg-primary/10 shadow-xs"
+              title="Consulter le rapport officiel des présences et exporter vers Excel / PDF"
+            >
+              <FileSpreadsheet className="size-3.5 mr-1.5 text-primary" />
+              Rapport des présences
+            </Button>
+          </Link>
+
           <Button
             variant="primary"
             onClick={handleSyncCvAccess}
             disabled={syncingCvAccess || loadingEmployes || loadingRegles || loadingCvHoraires}
-            className="h-9 text-xs self-start sm:self-auto font-semibold shadow-xs"
+            className="h-9 text-xs font-semibold shadow-xs"
             title="Synchronise les nouveaux départements, employés et horaires depuis CVAccess"
           >
             <RotateCcw
