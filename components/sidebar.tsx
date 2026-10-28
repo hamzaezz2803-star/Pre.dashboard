@@ -187,13 +187,22 @@ export function Sidebar({
         )}
       >
         {/* En-tête : Logo et Titre */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
+        <div
+          className={cn(
+            "relative flex h-16 shrink-0 items-center border-b border-border transition-all",
+            collapsed ? "justify-center px-2" : "justify-between px-4"
+          )}
+        >
           <Link
             href="/"
             onClick={onCloseMobile}
-            className="flex items-center gap-3 overflow-hidden group focus-visible:ring-2 focus-visible:ring-primary rounded-md p-1"
+            className={cn(
+              "flex items-center rounded-lg group focus-visible:ring-2 focus-visible:ring-primary transition-all",
+              collapsed ? "justify-center p-1" : "gap-3 min-w-0 p-1"
+            )}
+            title="Phosboucraâ - Suivi des pointages"
           >
-            <div className="relative shrink-0 flex items-center justify-center rounded-lg bg-surface p-1 shadow-xs border border-border/60">
+            <div className="relative shrink-0 flex items-center justify-center rounded-lg bg-white p-1 shadow-xs border border-border/60">
               <Image
                 src="/assets/logo-ocp-phosboucraa.png"
                 alt="Logo OCP Phosboucraâ"
@@ -230,12 +239,17 @@ export function Sidebar({
             <button
               type="button"
               onClick={onToggleCollapse}
-              className="hidden md:inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className={cn(
+                "hidden md:flex items-center justify-center transition-all cursor-pointer",
+                collapsed
+                  ? "absolute -right-3 top-5 z-50 size-6 rounded-full border border-border bg-surface text-muted-foreground hover:text-foreground hover:bg-muted shadow-xs hover:scale-110"
+                  : "rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
               title={collapsed ? "Agrandir le menu" : "Réduire le menu"}
               aria-label={collapsed ? "Agrandir le menu" : "Réduire le menu"}
             >
               {collapsed ? (
-                <ChevronRight className="size-4" />
+                <ChevronRight className="size-3.5" />
               ) : (
                 <ChevronLeft className="size-4" />
               )}
