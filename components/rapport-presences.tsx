@@ -21,6 +21,7 @@ import {
   exportRapportPresencePdf,
   type RapportPresenceRow,
 } from "@/lib/export-rapport-presences";
+import { getHoraireConfig } from "@/lib/horaire-style";
 
 export function RapportPresences() {
   // Dates par défaut : 30 derniers jours
