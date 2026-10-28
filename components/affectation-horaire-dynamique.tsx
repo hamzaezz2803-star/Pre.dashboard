@@ -73,13 +73,13 @@ export interface RegleHoraireItem {
 }
 
 const JOURS_SEMAINE = [
-  { id: 1, court: "Lun", nom: "Lundi" },
-  { id: 2, court: "Mar", nom: "Mardi" },
-  { id: 3, court: "Mer", nom: "Mercredi" },
-  { id: 4, court: "Jeu", nom: "Jeudi" },
-  { id: 5, court: "Ven", nom: "Vendredi" },
-  { id: 6, court: "Sam", nom: "Samedi" },
-  { id: 7, court: "Dim", nom: "Dimanche" },
+  { id: 1, court: "Lun", lettre: "L", nom: "Lundi" },
+  { id: 2, court: "Mar", lettre: "M", nom: "Mardi" },
+  { id: 3, court: "Mer", lettre: "M", nom: "Mercredi" },
+  { id: 4, court: "Jeu", lettre: "J", nom: "Jeudi" },
+  { id: 5, court: "Ven", lettre: "V", nom: "Vendredi" },
+  { id: 6, court: "Sam", lettre: "S", nom: "Samedi" },
+  { id: 7, court: "Dim", lettre: "D", nom: "Dimanche" },
 ];
 
 function timeToMinutes(t: string): number {
@@ -797,9 +797,28 @@ export function AffectationHoraireDynamique() {
                       </div>
                     </td>
 
-                    {/* Jours */}
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {formatJours(r.jours_semaine)}
+                    {/* Jours (Carrés L M M J V S D : vert si sélectionné, gris sinon) */}
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        {JOURS_SEMAINE.map((j) => {
+                          const activeDays = r.jours_semaine && r.jours_semaine.length > 0 ? r.jours_semaine : [1, 2, 3, 4, 5, 6, 7];
+                          const isActif = activeDays.includes(j.id);
+                          return (
+                            <span
+                              key={j.id}
+                              className={cn(
+                                "inline-flex size-5 items-center justify-center rounded text-[10px] font-bold select-none transition-colors",
+                                isActif
+                                  ? "bg-primary text-white shadow-2xs"
+                                  : "bg-muted text-muted-foreground/35 border border-border/50"
+                              )}
+                              title={`${j.nom} : ${isActif ? "Actif" : "Inactif"}`}
+                            >
+                              {j.lettre}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </td>
 
                     {/* Statut (Actif / Inactif) */}
