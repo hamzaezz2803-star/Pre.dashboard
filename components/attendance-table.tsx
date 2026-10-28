@@ -13,6 +13,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -31,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card, Skeleton } from "@/components/ui/card";
 import { exportAttendanceToExcel } from "@/lib/export-excel";
 import { exportAttendanceToPdf } from "@/lib/export-pdf";
-import { formatDateFr, formatDurationLong } from "@/lib/dates";
+import { addDays, formatDateFr, formatDurationLong } from "@/lib/dates";
 import { formatStatut, getStatutTon, type StatutTon } from "@/lib/status";
 import { getHoraireConfig, isSortieLendemain, getDateLendemain } from "@/lib/horaire-style";
 import type { PresenceRow } from "@/lib/types";
@@ -118,6 +119,9 @@ const COLUMN_CLASSES: Record<string, { th: string; td: string }> = {
 interface PunchTimelineItem {
   id: string;
   heure: string;
+  jour?: string;
+  dateFormatted?: string;
+  isLendemain?: boolean;
   attDatetime: string;
   type: string;
   label: string;
@@ -154,8 +158,10 @@ export function AttendanceTable({
     setLoadingTimeline(true);
     setTimelineEvents([]);
     try {
+      const isOvernight = isSortieLendemain(row.premierPointage, row.dernierPointage, row.horaire);
+      const dateFinParam = isOvernight ? addDays(row.jour, 1) : row.jour;
       const res = await fetch(
-        `/api/presence/timeline?pin=${encodeURIComponent(row.empCode)}&date=${encodeURIComponent(row.jour)}`
+        `/api/presence/timeline?pin=${encodeURIComponent(row.empCode)}&date=${encodeURIComponent(row.jour)}&date_fin=${encodeURIComponent(dateFinParam)}`
       );
       if (res.ok) {
         const d = await res.json();
@@ -545,14 +551,18 @@ export function AttendanceTable({
                   <h3 className="text-sm font-semibold tracking-tight text-foreground">
                     Timeline des Pointages
                   </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedTimelineRow.lastName} {selectedTimelineRow.firstName} · {formatDateFr(selectedTimelineRow.jour)}
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                    <span className="font-semibold text-foreground">
+                      {selectedTimelineRow.lastName} {selectedTimelineRow.firstName}
+                    </span>
+                    <span>·</span>
+                    <span>{formatDateFr(selectedTimelineRow.jour)}</span>
                     {selectedTimelineRow.horaire && selectedTimelineRow.horaire !== "Horaire non défini" && (
-                      <span className="ml-1.5 font-medium text-primary">
-                        · {selectedTimelineRow.horaire}
+                      <span className={cn("ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border inline-flex items-center gap-1", getHoraireConfig(selectedTimelineRow.horaire).badgeClass)}>
+                        {selectedTimelineRow.horaire}
                       </span>
                     )}
-                  </p>
+                  </div>
                 </div>
               </div>
 
@@ -565,37 +575,81 @@ export function AttendanceTable({
               </button>
             </div>
 
-            {/* Récapitulatif Entrée / Sortie / Présence */}
-            <div className="p-4 bg-muted/10 border-b border-border grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="p-2 rounded-lg bg-surface border border-border/60">
-                <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold flex items-center justify-center gap-1">
-                  <LogIn className="size-3" /> A entré
-                </span>
-                <p className="mt-1 font-bold text-sm tabular-nums text-foreground">
-                  {selectedTimelineRow.premierPointage || "-"}
-                </p>
+            {/* Récapitulatif Entrée / Sortie / Présence avec dates visibles */}
+            <div className="p-4 bg-muted/10 border-b border-border grid grid-cols-3 gap-2.5 text-center text-xs">
+              {/* Carte Entrée */}
+              <div className="p-2.5 rounded-lg bg-surface border border-border/60 flex flex-col justify-between shadow-2xs">
+                <div>
+                  <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold flex items-center justify-center gap-1">
+                    <LogIn className="size-3" /> A entré
+                  </span>
+                  <p className="mt-1 font-bold text-base tabular-nums text-foreground">
+                    {selectedTimelineRow.premierPointage || "-"}
+                  </p>
+                </div>
+                {selectedTimelineRow.premierPointage && (
+                  <div className="mt-1.5 pt-1 border-t border-border/40 text-[11px] font-medium text-muted-foreground tabular-nums flex items-center justify-center gap-1">
+                    <Calendar className="size-3 text-muted-foreground/70" />
+                    <span>{formatDateFr(selectedTimelineRow.jour)}</span>
+                  </div>
+                )}
               </div>
 
-              <div className="p-2 rounded-lg bg-surface border border-border/60">
-                <span className="text-[11px] text-red-700 dark:text-red-400 font-semibold flex items-center justify-center gap-1">
-                  <LogOut className="size-3" /> A sorti
-                </span>
-                <p className="mt-1 font-bold text-sm tabular-nums text-foreground">
-                  {selectedTimelineRow.dernierPointage || "-"}
-                </p>
-              </div>
+              {/* Carte Sortie avec date et indicateur +1j */}
+              {(() => {
+                const isOvernight = isSortieLendemain(
+                  selectedTimelineRow.premierPointage,
+                  selectedTimelineRow.dernierPointage,
+                  selectedTimelineRow.horaire
+                );
+                const dateSortie = isOvernight
+                  ? formatDateFr(addDays(selectedTimelineRow.jour, 1))
+                  : formatDateFr(selectedTimelineRow.jour);
 
-              <div className="p-2 rounded-lg bg-surface border border-border/60">
-                <span className="text-[11px] text-muted-foreground font-semibold flex items-center justify-center gap-1">
-                  <Clock className="size-3" /> Présence
-                </span>
-                <p className="mt-1 font-bold text-sm tabular-nums text-foreground">
-                  {formatDurationLong(selectedTimelineRow.tempsPresenceMin, "0h 00m")}
-                </p>
+                return (
+                  <div className="p-2.5 rounded-lg bg-surface border border-border/60 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <span className="text-[11px] text-red-700 dark:text-red-400 font-semibold flex items-center justify-center gap-1">
+                        <LogOut className="size-3" /> A sorti
+                      </span>
+                      <p className="mt-1 font-bold text-base tabular-nums text-foreground">
+                        {selectedTimelineRow.dernierPointage || "-"}
+                      </p>
+                    </div>
+                    {selectedTimelineRow.dernierPointage && (
+                      <div className="mt-1.5 pt-1 border-t border-border/40 text-[11px] font-medium tabular-nums flex items-center justify-center gap-1">
+                        <Calendar className="size-3 text-muted-foreground/70" />
+                        <span className={cn(isOvernight ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-muted-foreground")}>
+                          {dateSortie}
+                        </span>
+                        {isOvernight && (
+                          <span className="px-1 py-0.2 rounded text-[9px] font-extrabold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25">
+                            +1j
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Carte Présence */}
+              <div className="p-2.5 rounded-lg bg-surface border border-border/60 flex flex-col justify-between shadow-2xs">
+                <div>
+                  <span className="text-[11px] text-muted-foreground font-semibold flex items-center justify-center gap-1">
+                    <Clock className="size-3" /> Présence
+                  </span>
+                  <p className="mt-1 font-bold text-base tabular-nums text-foreground">
+                    {formatDurationLong(selectedTimelineRow.tempsPresenceMin, "0h 00m")}
+                  </p>
+                </div>
+                <div className="mt-1.5 pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
+                  Durée cumulée
+                </div>
               </div>
             </div>
 
-            {/* Liste chronologique détaillée des événements */}
+            {/* Liste chronologique détaillée des événements avec dates */}
             <div className="p-4 max-h-72 overflow-y-auto space-y-3">
               <p className="text-xs font-semibold text-muted-foreground">
                 Chronologie exacte des passages enregistrés :
@@ -607,39 +661,55 @@ export function AttendanceTable({
                 </div>
               ) : timelineEvents.length > 0 ? (
                 <div className="relative pl-5 space-y-3 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
-                  {timelineEvents.map((evt, idx) => (
-                    <div key={evt.id || idx} className="relative flex items-start gap-2 text-xs">
-                      <span
-                        className={cn(
-                          "absolute -left-5 mt-1 size-2.5 rounded-full ring-4 ring-surface",
-                          evt.type === "entree" || evt.type === "pause_in"
-                            ? "bg-emerald-500"
-                            : "bg-red-500"
-                        )}
-                      />
-                      <div className="flex-1 bg-surface p-2.5 rounded-lg border border-border/60 shadow-2xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground flex items-center gap-1.5">
-                            {evt.type === "entree" ? (
-                              <LogIn className="size-3.5 text-emerald-600" />
-                            ) : (
-                              <LogOut className="size-3.5 text-red-600" />
-                            )}
-                            {evt.label}
-                          </span>
-                          <span className="font-mono font-bold text-xs tabular-nums text-foreground">
-                            {evt.heure}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <MapPin className="size-3" />
-                          <span>{evt.lieu}</span>
-                          <span>·</span>
-                          <span>{evt.appareil}</span>
+                  {timelineEvents.map((evt, idx) => {
+                    const isNext = evt.isLendemain ?? (evt.jour ? evt.jour > selectedTimelineRow.jour : false);
+                    const eventDate = evt.dateFormatted || (evt.jour ? formatDateFr(evt.jour) : formatDateFr(selectedTimelineRow.jour));
+
+                    return (
+                      <div key={evt.id || idx} className="relative flex items-start gap-2 text-xs">
+                        <span
+                          className={cn(
+                            "absolute -left-5 mt-1 size-2.5 rounded-full ring-4 ring-surface",
+                            evt.type === "entree" || evt.type === "pause_in"
+                              ? "bg-emerald-500"
+                              : "bg-red-500"
+                          )}
+                        />
+                        <div className="flex-1 bg-surface p-2.5 rounded-lg border border-border/60 shadow-2xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-foreground flex items-center gap-1.5">
+                              {evt.type === "entree" || evt.type === "pause_in" ? (
+                                <LogIn className="size-3.5 text-emerald-600" />
+                              ) : (
+                                <LogOut className="size-3.5 text-red-600" />
+                              )}
+                              {evt.label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-xs tabular-nums text-foreground">
+                                {evt.heure}
+                              </span>
+                              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted/60 text-[10px] font-medium text-muted-foreground border border-border/60 tabular-nums">
+                                <Calendar className="size-2.5 opacity-70" />
+                                <span>{eventDate}</span>
+                                {isNext && (
+                                  <span className="ml-0.5 px-1 py-0.2 rounded text-[8px] font-extrabold bg-indigo-500/20 text-indigo-700 dark:text-indigo-300">
+                                    +1j
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <MapPin className="size-3" />
+                            <span>{evt.lieu}</span>
+                            <span>·</span>
+                            <span>{evt.appareil}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-3 rounded-lg bg-surface border border-dashed border-border text-center text-xs text-muted-foreground">

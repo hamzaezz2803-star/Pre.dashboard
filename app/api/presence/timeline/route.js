@@ -53,6 +53,7 @@ export async function GET(request) {
          auth_dept_name AS departement,
          to_char(att_datetime, 'HH24:MI:SS') AS heure,
          to_char(att_datetime, 'YYYY-MM-DD') AS jour,
+         to_char(att_datetime, 'DD/MM/YYYY') AS date_formatted,
          att_datetime,
          att_state,
          COALESCE(att_place, 'Badgeuse principale') AS lieu,
@@ -84,6 +85,9 @@ export async function GET(request) {
       return {
         id: r.id,
         heure: r.heure,
+        jour: r.jour,
+        dateFormatted: r.date_formatted,
+        isLendemain: r.jour > date,
         attDatetime: r.att_datetime,
         type: stateInfo.type,
         label: stateInfo.label,
