@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { creerSession, verifierMotDePasse } from '@/lib/auth';
+import { creerSession, verifierMotDePasse, SESSION_COOKIE, isCookieSecure } from '@/lib/auth';
 
 /**
  * Route POST /api/auth/login
@@ -27,10 +27,10 @@ export async function POST(request) {
     );
   }
 
-  // Création du JWT et écriture du cookie httpOnly
-  await creerSession(user);
+  // Création du JWT et enregistrement
+  const token = await creerSession(user);
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     success: true,
     user: {
       id: user.id,
@@ -39,4 +39,16 @@ export async function POST(request) {
       role: user.role,
     },
   });
+
+  // Écriture directe et garantie sur l'en-tête Set-Cookie de NextResponse
+  const secure = isCookieSecure(request.headers);
+  res.cookies.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure,
+    path: '/',
+    maxAge: 8 * 60 * 60, // 8 heures
+  });
+
+  return res;
 }

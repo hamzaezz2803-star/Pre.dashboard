@@ -1,14 +1,26 @@
 import { NextResponse } from 'next/server';
-import { supprimerSession } from '@/lib/auth';
+import { supprimerSession, SESSION_COOKIE, isCookieSecure } from '@/lib/auth';
 
 /**
  * Route POST /api/auth/logout
  * Supprime le cookie de session httpOnly.
  */
-export async function POST() {
+export async function POST(request) {
   await supprimerSession();
-  return NextResponse.json({
+
+  const res = NextResponse.json({
     success: true,
     message: 'Déconnexion réussie.',
   });
+
+  const secure = isCookieSecure(request?.headers);
+  res.cookies.set(SESSION_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure,
+    path: '/',
+    maxAge: 0,
+  });
+
+  return res;
 }
