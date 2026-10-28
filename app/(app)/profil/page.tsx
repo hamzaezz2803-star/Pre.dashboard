@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { lireSession } from "@/lib/auth";
 import { ProfilePageContent } from "@/components/profile-page";
@@ -8,7 +9,9 @@ export const metadata: Metadata = {
   description: "Consultation et modification des informations du profil utilisateur.",
 };
 
-export default async function ProfilPage() {
+export const instant = false;
+
+async function ProfilContent() {
   const session = await lireSession();
 
   if (!session) {
@@ -24,5 +27,19 @@ export default async function ProfilPage() {
         role: session.role,
       }}
     />
+  );
+}
+
+export default function ProfilPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 text-sm text-muted-foreground animate-pulse">
+          Chargement du profil...
+        </div>
+      }
+    >
+      <ProfilContent />
+    </Suspense>
   );
 }
