@@ -22,6 +22,7 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  Moon,
   RefreshCw,
   X,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import { exportAttendanceToExcel } from "@/lib/export-excel";
 import { exportAttendanceToPdf } from "@/lib/export-pdf";
 import { formatDateFr, formatDurationLong } from "@/lib/dates";
 import { formatStatut, getStatutTon, type StatutTon } from "@/lib/status";
+import { getHoraireConfig, isSortieLendemain, getDateLendemain } from "@/lib/horaire-style";
 import type { PresenceRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -230,7 +232,27 @@ export function AttendanceTable({
         sortUndefined: "last",
         cell: (c) => {
           const v = c.getValue<string | null>();
-          return v ? <span className="tabular-nums text-xs font-mono block text-center">{v}</span> : <div className="text-center">{dash}</div>;
+          if (!v) return <div className="text-center">{dash}</div>;
+          const premier = c.row.original.premierPointage;
+          const horaire = c.row.original.horaire;
+          const jour = c.row.original.jour;
+          const estLendemain = isSortieLendemain(premier, v, horaire);
+          const dateLendemain = getDateLendemain(jour);
+
+          return (
+            <div className="flex items-center justify-center gap-1.5">
+              <span className="tabular-nums text-xs font-mono">{v}</span>
+              {estLendemain && (
+                <span
+                  className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 shrink-0"
+                  title={`Sortie effectuée le lendemain matin${dateLendemain ? ` (${dateLendemain})` : ""} à ${v}`}
+                >
+                  <Moon className="size-2.5" />
+                  +1j
+                </span>
+              )}
+            </div>
+          );
         },
       },
       {
@@ -258,7 +280,7 @@ export function AttendanceTable({
           const tags = label !== "-" ? label.split(" · ") : [];
 
           return (
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1.5">
               {tags.map((tag, idx) => {
                 const isEnCours = tag === "En cours — sortie attendue";
                 const isTermine = tag === "Terminé";
@@ -288,15 +310,25 @@ export function AttendanceTable({
                   </span>
                 );
               })}
-              {horaire && horaire !== "Horaire non défini" && (
-                <span
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:text-[11px] font-medium leading-tight border border-primary/20 bg-primary/10 text-primary"
-                  title={`Horaire affecté : ${horaire}`}
-                >
-                  <Clock className="size-2.5 text-primary" />
-                  <span className="truncate">{horaire}</span>
-                </span>
-              )}
+              {horaire && horaire !== "Horaire non défini" && (() => {
+                const cfg = getHoraireConfig(horaire);
+                const Icon = cfg.Icon;
+                return (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold leading-tight border",
+                      cfg.badgeClass
+                    )}
+                    title={`Horaire affecté : ${horaire}${cfg.isNight ? " (Service de nuit — sortie le lendemain)" : ""}`}
+                  >
+                    <Icon className="size-2.5 shrink-0" />
+                    <span className="truncate">{horaire}</span>
+                    {cfg.isNight && (
+                      <span className="text-[9px] font-bold opacity-80">(J+1)</span>
+                    )}
+                  </span>
+                );
+              })()}
             </div>
           );
         },
