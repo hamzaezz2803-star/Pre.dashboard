@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { getHoraireConfig } from "@/lib/horaire-style";
 
 // --- Types ---
 export interface DepartementItem {
@@ -782,19 +783,27 @@ export function AffectationHoraireDynamique() {
 
                     {/* Horaire attribué */}
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                        {r.est_nuit && (
-                          <span title="Shift de nuit (+1j)">
-                            <Moon className="size-3 text-indigo-500" />
-                          </span>
-                        )}
-                        <span>{r.period_name || r.cvaccess_horaire_id}</span>
-                        {r.to_work_time && (
-                          <span className="font-normal text-muted-foreground font-mono text-[11px]">
-                            ({r.to_work_time} – {r.off_work_time})
-                          </span>
-                        )}
-                      </div>
+                      {(() => {
+                        const horaireNom = r.period_name || r.cvaccess_horaire_id;
+                        const cfg = getHoraireConfig(horaireNom);
+                        const Icon = cfg.Icon;
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={cn("inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold border", cfg.badgeClass)}>
+                              <Icon className="size-3 shrink-0" />
+                              <span>{horaireNom}</span>
+                              {cfg.isNight && (
+                                <span className="text-[10px] font-bold opacity-80">(J+1)</span>
+                              )}
+                            </span>
+                            {r.to_work_time && (
+                              <span className="font-normal text-muted-foreground font-mono text-[11px]">
+                                ({r.to_work_time} – {r.off_work_time})
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Jours (Carrés L M M J V S D : vert si sélectionné, gris sinon) */}

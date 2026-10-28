@@ -367,12 +367,25 @@ export function RapportPresences() {
                           <span className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                             Horaire non défini
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                            <Clock className="size-3 text-primary" />
-                            {item.horaire_affecte}
-                          </span>
-                        )}
+                        ) : (() => {
+                          const cfg = getHoraireConfig(item.horaire_affecte);
+                          const Icon = cfg.Icon;
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold border",
+                                cfg.badgeClass
+                              )}
+                              title={`Horaire : ${item.horaire_affecte}${cfg.isNight ? " (Service de nuit — sortie le lendemain J+1)" : ""}`}
+                            >
+                              <Icon className="size-3 shrink-0" />
+                              <span>{item.horaire_affecte}</span>
+                              {cfg.isNight && (
+                                <span className="text-[10px] font-bold opacity-80">(J+1)</span>
+                              )}
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
