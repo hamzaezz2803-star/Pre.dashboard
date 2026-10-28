@@ -8,7 +8,7 @@ import { exigerRole } from '@/lib/auth';
 function timeToMinutes(t) {
   if (!t) return 0;
   const [h, m] = t.slice(0, 5).split(':').map(Number);
-  return h * 60 + (m || 0);
+  return (h || 0) * 60 + (m || 0);
 }
 
 /**
@@ -42,9 +42,34 @@ function chevauchementPlages(debutA, finA, debutB, finB) {
 }
 
 /**
+ * Vérifie si deux listes de jours de la semaine (1=Lundi .. 7=Dimanche) ont au moins un jour en commun.
+ */
+function joursSeChevauchent(joursA, joursB) {
+  const setA = new Set(Array.isArray(joursA) && joursA.length > 0 ? joursA : [1, 2, 3, 4, 5, 6, 7]);
+  const setB = new Set(Array.isArray(joursB) && joursB.length > 0 ? joursB : [1, 2, 3, 4, 5, 6, 7]);
+  for (const j of setA) {
+    if (setB.has(j)) return true;
+  }
+  return false;
+}
+
+/**
+ * Normalise la liste des jours (1 à 7).
+ */
+function normaliserJours(jours_semaine) {
+  if (!Array.isArray(jours_semaine) || jours_semaine.length === 0) {
+    return [1, 2, 3, 4, 5, 6, 7];
+  }
+  const clean = Array.from(new Set(jours_semaine.map(Number))).filter(
+    (n) => Number.isInteger(n) && n >= 1 && n <= 7
+  );
+  return clean.length > 0 ? clean.sort((a, b) => a - b) : [1, 2, 3, 4, 5, 6, 7];
+}
+
+/**
  * GET /api/affectation-horaire/regles
  * Retourne la liste des règles de reconnaissance horaire depuis la table horaires,
- * associées aux informations officielles de cvaccess_horaires.
+ * associées aux informations officielles de cvaccess_horaires et à la liste des jours.
  */
 export async function GET() {
   const auth = await exigerRole('admin', 'super_admin');
@@ -59,6 +84,7 @@ export async function GET() {
         h.heure_debut::text,
         h.heure_fin::text,
         h.cvaccess_horaire_id,
+        h.jours_semaine,
         h.actif,
         h.date_creation,
         c.period_name,
@@ -90,6 +116,9 @@ export async function GET() {
         heure_debut: debutPtg,
         heure_fin: finPtg,
         cvaccess_horaire_id: r.cvaccess_horaire_id,
+        jours_semaine: Array.isArray(r.jours_semaine) && r.jours_semaine.length > 0
+          ? r.jours_semaine
+          : [1, 2, 3, 4, 5, 6, 7],
         actif: Boolean(r.actif),
         date_creation: r.date_creation,
         period_name: r.period_name || 'Horaire non spécifié',
@@ -112,7 +141,7 @@ export async function GET() {
 
 /**
  * POST /api/affectation-horaire/regles
- * Crée une nouvelle règle de reconnaissance horaire dans la table horaires.
+ * Crée une nouvelle règle de reconnaissance horaire dans la table horaires avec ses jours d'application.
  */
 export async function POST(request) {
   const auth = await exigerRole('admin', 'super_admin');
@@ -122,7 +151,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { heure_debut, heure_fin, cvaccess_horaire_id } = body;
+    const { heure_debut, heure_fin, cvaccess_horaire_id, jours_semaine } = body;
 
     if (!heure_debut || !heure_fin || !cvaccess_horaire_id) {
       return NextResponse.json(
@@ -130,6 +159,8 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    const jours = normaliserJours(jours_semaine);
 
     // Contrôle d'existence de l'horaire CVAccess
     const checkHoraire = await targetPool.query(
@@ -144,44 +175,39 @@ export async function POST(request) {
       );
     }
 
-    // Récupérer les règles existantes pour détecter les doublons et chevauchements
+    // Récupérer les règles existantes pour détecter les doublons et chevauchements sur les MÊMES jours
     const existingRules = await targetPool.query(
-      'SELECT id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, actif FROM horaires WHERE actif = true'
+      'SELECT id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, jours_semaine, actif FROM horaires WHERE actif = true'
     );
 
-    // Vérification des doublons exacts
-    const doublon = existingRules.rows.find(
+    // Vérification des chevauchements (uniquement si les créneaux ET les jours se croisent)
+    const chevauchement = existingRules.rows.find(
       (r) =>
-        r.heure_debut.slice(0, 5) === heure_debut.slice(0, 5) &&
-        r.heure_fin.slice(0, 5) === heure_fin.slice(0, 5)
+        chevauchementPlages(heure_debut, heure_fin, r.heure_debut, r.heure_fin) &&
+        joursSeChevauchent(jours, r.jours_semaine)
     );
-    if (doublon) {
-      return NextResponse.json(
-        { error: 'Une règle active avec exactement la même plage horaire existe déjà.' },
-        { status: 409 }
-      );
-    }
 
-    // Vérification des chevauchements (avertissement ou blocage)
-    const chevauchement = existingRules.rows.find((r) =>
-      chevauchementPlages(heure_debut, heure_fin, r.heure_debut, r.heure_fin)
-    );
     if (chevauchement) {
       return NextResponse.json(
         {
-          error: `Attention, cette plage (${heure_debut} - ${heure_fin}) chevauche une règle existante active (${chevauchement.heure_debut.slice(0, 5)} - ${chevauchement.heure_fin.slice(0, 5)}). Veuillez ajuster les créneaux.`,
+          error: `Attention, cette plage (${heure_debut} - ${heure_fin}) chevauche une règle active existante (${chevauchement.heure_debut.slice(0, 5)} - ${chevauchement.heure_fin.slice(0, 5)}) sur des jours communs. Veuillez ajuster les créneaux ou les jours d'application.`,
         },
         { status: 409 }
       );
     }
 
     const insertQuery = `
-      INSERT INTO horaires (heure_debut, heure_fin, cvaccess_horaire_id, actif, date_creation)
-      VALUES ($1, $2, $3, true, NOW())
-      RETURNING id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, actif, date_creation;
+      INSERT INTO horaires (heure_debut, heure_fin, cvaccess_horaire_id, jours_semaine, actif, date_creation)
+      VALUES ($1, $2, $3, $4, true, NOW())
+      RETURNING id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, jours_semaine, actif, date_creation;
     `;
 
-    const res = await targetPool.query(insertQuery, [heure_debut, heure_fin, cvaccess_horaire_id]);
+    const res = await targetPool.query(insertQuery, [
+      heure_debut,
+      heure_fin,
+      cvaccess_horaire_id,
+      jours,
+    ]);
 
     return NextResponse.json(
       {
@@ -201,7 +227,7 @@ export async function POST(request) {
 
 /**
  * PUT /api/affectation-horaire/regles
- * Modifie une règle existante dans la table horaires.
+ * Modifie une règle existante dans la table horaires (plage, horaire et jours d'application).
  */
 export async function PUT(request) {
   const auth = await exigerRole('admin', 'super_admin');
@@ -211,7 +237,7 @@ export async function PUT(request) {
 
   try {
     const body = await request.json();
-    const { id, heure_debut, heure_fin, cvaccess_horaire_id, actif } = body;
+    const { id, heure_debut, heure_fin, cvaccess_horaire_id, jours_semaine, actif } = body;
 
     if (!id || !heure_debut || !heure_fin || !cvaccess_horaire_id) {
       return NextResponse.json(
@@ -220,19 +246,24 @@ export async function PUT(request) {
       );
     }
 
+    const jours = normaliserJours(jours_semaine);
+
     // Vérifier les chevauchements avec d'autres règles actives (sauf elle-même)
     const existingRules = await targetPool.query(
-      'SELECT id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, actif FROM horaires WHERE actif = true AND id != $1',
+      'SELECT id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, jours_semaine, actif FROM horaires WHERE actif = true AND id != $1',
       [id]
     );
 
-    const chevauchement = existingRules.rows.find((r) =>
-      chevauchementPlages(heure_debut, heure_fin, r.heure_debut, r.heure_fin)
+    const chevauchement = existingRules.rows.find(
+      (r) =>
+        chevauchementPlages(heure_debut, heure_fin, r.heure_debut, r.heure_fin) &&
+        joursSeChevauchent(jours, r.jours_semaine)
     );
+
     if (chevauchement && actif !== false) {
       return NextResponse.json(
         {
-          error: `Cette modification chevauche une règle existante active (${chevauchement.heure_debut.slice(0, 5)} - ${chevauchement.heure_fin.slice(0, 5)}).`,
+          error: `Cette modification chevauche une règle existante active (${chevauchement.heure_debut.slice(0, 5)} - ${chevauchement.heure_fin.slice(0, 5)}) sur des jours communs.`,
         },
         { status: 409 }
       );
@@ -240,15 +271,16 @@ export async function PUT(request) {
 
     const updateQuery = `
       UPDATE horaires
-      SET heure_debut = $1, heure_fin = $2, cvaccess_horaire_id = $3, actif = COALESCE($4, actif)
-      WHERE id = $5
-      RETURNING id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, actif;
+      SET heure_debut = $1, heure_fin = $2, cvaccess_horaire_id = $3, jours_semaine = $4, actif = COALESCE($5, actif)
+      WHERE id = $6
+      RETURNING id, heure_debut::text, heure_fin::text, cvaccess_horaire_id, jours_semaine, actif;
     `;
 
     const res = await targetPool.query(updateQuery, [
       heure_debut,
       heure_fin,
       cvaccess_horaire_id,
+      jours,
       actif,
       id,
     ]);
