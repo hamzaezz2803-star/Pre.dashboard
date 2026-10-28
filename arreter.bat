@@ -1,24 +1,20 @@
 @echo off
-chcp 65001 >nul
-title OCP Pointage - Arrêt du serveur
+title OCP Pointage - Arret du serveur
+
+cd /d "%~dp0"
 
 echo ================================================================
-echo           OCP POINTAGE - ARRÊT DU SERVEUR
+echo           OCP POINTAGE - ARRET DU SERVEUR
 echo ================================================================
 echo.
 
-echo [*] Arrêt du serveur sur le port 3000...
-set KILLED=0
+echo [*] Arret des processus en cours sur le port 3000...
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do (
     taskkill /F /PID %%a >nul 2>&1
-    set KILLED=1
+    echo [+] Processus %%a arrete.
 )
 
 echo.
-if "%KILLED%"=="1" (
-    echo [✓] Le serveur OCP Pointage a été arrêté avec succès.
-) else (
-    echo [i] Aucun serveur actif n'a été détecté sur le port 3000.
-)
+echo [OK] Le serveur OCP Pointage est arrete.
 echo.
-timeout /t 3 >nul
+ping 127.0.0.1 -n 3 >nul
