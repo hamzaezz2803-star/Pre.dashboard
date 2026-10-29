@@ -2,6 +2,11 @@
 title OCP Pointage - Demarrage du serveur
 
 cd /d "%~dp0"
+if not exist "package.json" (
+    if exist "C:\ocpdahsboard\package.json" (
+        cd /d "C:\ocpdahsboard"
+    )
+)
 
 echo ================================================================
 echo           OCP POINTAGE - SUIVI DES PRESENCES
