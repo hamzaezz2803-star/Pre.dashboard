@@ -23,6 +23,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePerimetre, perimetreExport } from "@/components/perimetre-context";
 import { Card } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { currentMonthRange, formatDateFr, formatDurationLong } from "@/lib/dates";
@@ -104,6 +105,8 @@ export function HorairesSuivi() {
   const [recherche, setRecherche] = useState("");
   const [horaireFilter, setHoraireFilter] = useState("all");
   const [statutFilter, setStatutFilter] = useState("all");
+  const perimetreInfo = usePerimetre();
+  const perimetre = perimetreExport(perimetreInfo);
 
   const [departmentsList, setDepartmentsList] = useState<string[]>([]);
   const [configuredHoraires, setConfiguredHoraires] = useState<HoraireItem[]>([]);
@@ -231,7 +234,7 @@ export function HorairesSuivi() {
     setExporting(true);
     try {
       const { exportHorairesSuiviToExcel } = await import("@/lib/export-horaires");
-      await exportHorairesSuiviToExcel(rows, stats, debut, fin);
+      await exportHorairesSuiviToExcel(rows, stats, debut, fin, perimetre);
     } catch (e) {
       console.error("Export Excel error", e);
     } finally {
@@ -244,7 +247,7 @@ export function HorairesSuivi() {
     setExporting(true);
     try {
       const { exportHorairesSuiviToPdf } = await import("@/lib/export-horaires");
-      await exportHorairesSuiviToPdf(rows, stats, debut, fin);
+      await exportHorairesSuiviToPdf(rows, stats, debut, fin, perimetre);
     } catch (e) {
       console.error("Export PDF error", e);
     } finally {

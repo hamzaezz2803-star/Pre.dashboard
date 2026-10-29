@@ -2,11 +2,14 @@
 
 import {
   AlertCircle,
+  AlertTriangle,
+  Building2,
   Check,
   Edit2,
   KeyRound,
   Loader2,
   RefreshCw,
+  Search,
   ShieldCheck,
   Trash2,
   UserCheck,
@@ -18,6 +21,11 @@ import { Button } from "@/components/ui/button";
 import { Card, fieldClass } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+interface UserDepartment {
+  id: string;
+  name: string;
+}
+
 interface User {
   id: number;
   username: string;
@@ -26,6 +34,14 @@ interface User {
   active: boolean;
   created_at: string;
   updated_at: string;
+  departements?: UserDepartment[];
+}
+
+interface DepartmentOption {
+  id: string;
+  code?: string;
+  name: string;
+  parent_id?: string | null;
 }
 
 interface CurrentUser {
@@ -43,8 +59,168 @@ function formatDate(dateStr: string): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Sélecteur multiple de départements avec recherche et actions rapides */
+function DepartementSelector({
+  departements,
+  selectedIds,
+  onChange,
+  disabled = false,
+}: {
+  departements: DepartmentOption[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [recherche, setRecherche] = useState("");
+
+  const filtered = departements.filter((d) => {
+    const q = recherche.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      d.name.toLowerCase().includes(q) ||
+      (d.code && d.code.toLowerCase().includes(q))
+    );
+  });
+
+  const selectedSet = new Set(selectedIds.map(String));
+
+  function toggle(id: string) {
+    if (disabled) return;
+    const strId = String(id);
+    if (selectedSet.has(strId)) {
+      onChange(selectedIds.filter((x) => String(x) !== strId));
+    } else {
+      onChange([...selectedIds, strId]);
+    }
+  }
+
+  function selectAll() {
+    if (disabled) return;
+    const toAdd = filtered.map((d) => String(d.id));
+    const merged = Array.from(new Set([...selectedIds.map(String), ...toAdd]));
+    onChange(merged);
+  }
+
+  function deselectAll() {
+    if (disabled) return;
+    if (!recherche.trim()) {
+      onChange([]);
+    } else {
+      const toRemove = new Set(filtered.map((d) => String(d.id)));
+      onChange(selectedIds.filter((id) => !toRemove.has(String(id))));
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-1">
+        <label className="text-xs font-medium flex items-center gap-1.5">
+          <Building2 className="size-3.5 text-primary" aria-hidden="true" />
+          Départements attribués ({selectedIds.length}/{departements.length})
+        </label>
+        <div className="flex items-center gap-2 text-[11px]">
+          <button
+            type="button"
+            disabled={disabled || departements.length === 0}
+            onClick={selectAll}
+            className="text-primary hover:underline font-medium disabled:opacity-50"
+          >
+            Tout sélectionner
+          </button>
+          <span className="text-muted-foreground">•</span>
+          <button
+            type="button"
+            disabled={disabled || selectedIds.length === 0}
+            onClick={deselectAll}
+            className="text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
+          >
+            Tout désélectionner
+          </button>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <input
+          type="text"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Rechercher un département..."
+          disabled={disabled}
+          className="w-full pl-8 pr-7 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        {recherche && (
+          <button
+            type="button"
+            onClick={() => setRecherche("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Effacer la recherche"
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </div>
+
+      <div className="max-h-40 overflow-y-auto rounded-md border border-border bg-background divide-y divide-border/40 p-1">
+        {departements.length === 0 ? (
+          <p className="p-3 text-center text-xs text-muted-foreground">
+            Chargement ou aucun département disponible.
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="p-3 text-center text-xs text-muted-foreground">
+            Aucun département pour « {recherche} ».
+          </p>
+        ) : (
+          filtered.map((d) => {
+            const isChecked = selectedSet.has(String(d.id));
+            return (
+              <label
+                key={d.id}
+                className={cn(
+                  "flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer select-none transition-colors",
+                  isChecked ? "bg-primary/10 text-foreground font-medium" : "hover:bg-muted/50 text-foreground/80"
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  disabled={disabled}
+                  onChange={() => toggle(d.id)}
+                  className="size-3.5 rounded border-border text-primary focus:ring-primary"
+                />
+                <span className="flex-1 truncate">{d.name}</span>
+                {d.code && (
+                  <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded">
+                    {d.code}
+                  </span>
+                )}
+              </label>
+            );
+          })
+        )}
+      </div>
+
+      {selectedIds.length === 0 ? (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <div>
+            <span className="font-semibold">Aucun département affecté :</span>{" "}
+            cet administrateur ne verra aucune donnée tant qu&apos;un département ne lui sera pas attribué.
+          </div>
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
+          Les sous-départements rattachés seront automatiquement inclus dans le périmètre.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
   const [users, setUsers] = useState<User[]>([]);
+  const [allDepartements, setAllDepartements] = useState<DepartmentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -61,11 +237,13 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
     full_name: "",
     role: "admin" as "admin" | "super_admin",
     password: "",
+    departement_ids: [] as string[],
   });
   const [editForm, setEditForm] = useState({
     full_name: "",
     role: "admin" as "admin" | "super_admin",
     active: true,
+    departement_ids: [] as string[],
   });
   const [newPassword, setNewPassword] = useState("");
   const [actionPending, setActionPending] = useState(false);
@@ -75,13 +253,22 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/users");
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+      const [resUsers, resDepts] = await Promise.all([
+        fetch("/api/admin/users"),
+        fetch("/api/admin/departements"),
+      ]);
+
+      if (!resUsers.ok) {
+        const data = await resUsers.json().catch(() => ({}));
         throw new Error(data.error || "Impossible de charger la liste des utilisateurs.");
       }
-      const data = await res.json();
-      setUsers(data);
+      const dataUsers = await resUsers.json();
+      setUsers(dataUsers);
+
+      if (resDepts.ok) {
+        const dataDepts = await resDepts.json();
+        setAllDepartements(dataDepts.departements || []);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erreur de chargement.");
     } finally {
@@ -93,13 +280,22 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
     let cancelled = false;
     async function init() {
       try {
-        const res = await fetch("/api/admin/users");
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
+        const [resUsers, resDepts] = await Promise.all([
+          fetch("/api/admin/users"),
+          fetch("/api/admin/departements"),
+        ]);
+
+        if (!resUsers.ok) {
+          const data = await resUsers.json().catch(() => ({}));
           throw new Error(data.error || "Impossible de charger la liste des utilisateurs.");
         }
-        const data = await res.json();
-        if (!cancelled) setUsers(data);
+        const dataUsers = await resUsers.json();
+        if (!cancelled) setUsers(dataUsers);
+
+        if (resDepts.ok) {
+          const dataDepts = await resDepts.json();
+          if (!cancelled) setAllDepartements(dataDepts.departements || []);
+        }
       } catch (err: unknown) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Erreur de chargement.");
       } finally {
@@ -137,8 +333,11 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
       }
 
       setCreateModalOpen(false);
-      setCreateForm({ username: "", full_name: "", role: "admin", password: "" });
-      showSuccess(`L'utilisateur "${data.username}" a été créé avec succès.`);
+      setCreateForm({ username: "", full_name: "", role: "admin", password: "", departement_ids: [] });
+      const msg = data.avertissement
+        ? `L'utilisateur "${data.username}" a été créé. Attention : ${data.avertissement}`
+        : `L'utilisateur "${data.username}" a été créé avec succès.`;
+      showSuccess(msg);
       await loadUsers();
     } catch (err: unknown) {
       setModalError(err instanceof Error ? err.message : "Erreur inattendue.");
@@ -154,6 +353,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
       full_name: user.full_name || "",
       role: user.role,
       active: user.active,
+      departement_ids: (user.departements || []).map((d) => String(d.id)),
     });
     setModalError(null);
   }
@@ -178,7 +378,10 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
       }
 
       setEditModalUser(null);
-      showSuccess(`L'utilisateur "${data.username}" a été mis à jour.`);
+      const msg = data.avertissement
+        ? `L'utilisateur "${data.username}" a été mis à jour. Attention : ${data.avertissement}`
+        : `L'utilisateur "${data.username}" a été mis à jour.`;
+      showSuccess(msg);
       await loadUsers();
     } catch (err: unknown) {
       setModalError(err instanceof Error ? err.message : "Erreur inattendue.");
@@ -273,7 +476,13 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
           <Button
             onClick={() => {
               setModalError(null);
-              setCreateForm({ username: "", full_name: "", role: "admin", password: "" });
+              setCreateForm({
+                username: "",
+                full_name: "",
+                role: "admin",
+                password: "",
+                departement_ids: [],
+              });
               setCreateModalOpen(true);
             }}
           >
@@ -308,7 +517,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
       {/* Tableau des utilisateurs */}
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead className="bg-muted text-xs text-muted-foreground border-b border-border">
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">
@@ -319,6 +528,9 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
                   Rôle
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Périmètre (Départements)
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
                   Statut
@@ -334,20 +546,21 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
             <tbody className="divide-y divide-border">
               {loading && users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     <Loader2 className="size-5 animate-spin mx-auto mb-2 text-primary" aria-hidden="true" />
                     Chargement des utilisateurs…
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     Aucun utilisateur trouvé.
                   </td>
                 </tr>
               ) : (
                 users.map((u) => {
                   const isCurrent = currentUser?.username === u.username;
+                  const depts = u.departements || [];
                   return (
                     <tr key={u.id} className="hover:bg-muted/40 transition-colors">
                       <td className="px-4 py-3 font-medium">
@@ -372,6 +585,38 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
                             <UserCheck className="size-3.5 text-muted-foreground" aria-hidden="true" />
                             Admin
                           </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {u.role === "super_admin" ? (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
+                            <ShieldCheck className="size-3.5 text-primary" aria-hidden="true" />
+                            Tous les départements
+                          </span>
+                        ) : depts.length === 0 ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                            title="Cet admin ne possède aucun département affecté : il ne verra aucune donnée"
+                          >
+                            <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                            Aucun département (0)
+                          </span>
+                        ) : (
+                          <div
+                            className="inline-flex flex-wrap items-center gap-1.5 cursor-default"
+                            title={`Départements autorisés : ${depts.map((d) => d.name).join(", ")}`}
+                          >
+                            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                              <Building2 className="size-3" aria-hidden="true" />
+                              {depts.length === 1 ? depts[0].name : `${depts.length} départements`}
+                            </span>
+                            {depts.length > 1 && (
+                              <span className="text-[11px] text-muted-foreground">
+                                ({depts.slice(0, 2).map((d) => d.name).join(", ")}
+                                {depts.length > 2 ? "…" : ""})
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -434,7 +679,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
       {/* Modal Créer */}
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4">
+          <div className="w-full max-w-lg rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
                 <UserPlus className="size-5 text-primary" aria-hidden="true" />
@@ -499,10 +744,20 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
                   onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as "admin" | "super_admin" })}
                   className={fieldClass}
                 >
-                  <option value="admin">Administrateur (Consultation, filtres, exports)</option>
-                  <option value="super_admin">Super Administrateur (Tous les droits)</option>
+                  <option value="admin">Administrateur (Consultation, filtres, exports restreints au périmètre)</option>
+                  <option value="super_admin">Super Administrateur (Tous les droits et départements)</option>
                 </select>
               </div>
+
+              {/* Périmètre de départements : visible uniquement pour le rôle admin */}
+              {createForm.role === "admin" && (
+                <DepartementSelector
+                  departements={allDepartements}
+                  selectedIds={createForm.departement_ids}
+                  onChange={(ids) => setCreateForm({ ...createForm, departement_ids: ids })}
+                  disabled={actionPending}
+                />
+              )}
 
               <div className="space-y-1">
                 <label htmlFor="create-password" className="text-xs font-medium">
@@ -537,7 +792,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
       {/* Modal Modifier */}
       {editModalUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4">
+          <div className="w-full max-w-lg rounded-lg border border-border bg-surface p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
                 <Edit2 className="size-5 text-primary" aria-hidden="true" />
@@ -597,6 +852,16 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
                   </p>
                 )}
               </div>
+
+              {/* Périmètre de départements : visible uniquement pour le rôle admin */}
+              {editForm.role === "admin" && (
+                <DepartementSelector
+                  departements={allDepartements}
+                  selectedIds={editForm.departement_ids}
+                  onChange={(ids) => setEditForm({ ...editForm, departement_ids: ids })}
+                  disabled={actionPending}
+                />
+              )}
 
               <div className="flex items-center gap-2 pt-2">
                 <input

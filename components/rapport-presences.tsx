@@ -22,6 +22,7 @@ import {
   type RapportPresenceRow,
 } from "@/lib/export-rapport-presences";
 import { getHoraireConfig } from "@/lib/horaire-style";
+import { usePerimetre, perimetreExport } from "@/components/perimetre-context";
 
 export function RapportPresences() {
   // Dates par défaut : 30 derniers jours
@@ -35,6 +36,8 @@ export function RapportPresences() {
   const [dateDebut, setDateDebut] = useState(debutParDefaut);
   const [dateFin, setDateFin] = useState(aujourdhui);
   const [rechercheTexte, setRechercheTexte] = useState("");
+  const perimetreInfo = usePerimetre();
+  const perimetre = perimetreExport(perimetreInfo);
 
   const [rows, setRows] = useState<RapportPresenceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +82,7 @@ export function RapportPresences() {
     if (rows.length === 0) return;
     setExportingExcel(true);
     try {
-      await exportRapportPresenceExcel(rows, dateDebut, dateFin);
+      await exportRapportPresenceExcel(rows, dateDebut, dateFin, perimetre);
     } catch (e) {
       console.error("Erreur export Excel", e);
     } finally {
@@ -91,7 +94,7 @@ export function RapportPresences() {
     if (rows.length === 0) return;
     setExportingPdf(true);
     try {
-      await exportRapportPresencePdf(rows, dateDebut, dateFin);
+      await exportRapportPresencePdf(rows, dateDebut, dateFin, perimetre);
     } catch (e) {
       console.error("Erreur export PDF", e);
     } finally {

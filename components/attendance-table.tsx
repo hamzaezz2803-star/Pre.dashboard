@@ -37,6 +37,7 @@ import { formatStatut, getStatutTon, type StatutTon } from "@/lib/status";
 import { getHoraireConfig, isSortieLendemain, getDateLendemain } from "@/lib/horaire-style";
 import type { PresenceRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { usePerimetre, perimetreExport } from "@/components/perimetre-context";
 
 const PAGE_SIZE = 25;
 
@@ -150,6 +151,8 @@ export function AttendanceTable({
   const [selectedTimelineRow, setSelectedTimelineRow] = useState<PresenceRow | null>(null);
   const [timelineEvents, setTimelineEvents] = useState<PunchTimelineItem[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
+  const perimetreInfo = usePerimetre();
+  const perimetre = perimetreExport(perimetreInfo);
 
   const data = useMemo(() => rows, [rows]);
 
@@ -377,8 +380,8 @@ export function AttendanceTable({
     setExporting(true);
     try {
       const sorted = table.getSortedRowModel().rows.map((r) => r.original);
-      if (format === "excel") await exportAttendanceToExcel(sorted, from, to);
-      else await exportAttendanceToPdf(sorted, from, to);
+      if (format === "excel") await exportAttendanceToExcel(sorted, from, to, perimetre);
+      else await exportAttendanceToPdf(sorted, from, to, perimetre);
     } finally {
       setExporting(false);
     }

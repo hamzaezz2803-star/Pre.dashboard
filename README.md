@@ -157,14 +157,35 @@ npm run start -- -H 0.0.0.0 -p 3000
 
 ---
 
-## 🔒 Gestion des Rôles & Authentification
+## 🔒 Gestion des Rôles & Cloisonnement par Département
 
-L'accès à l'application est protégé par un système de contrôle d'accès basé sur les rôles (RBAC) vérifié à la fois par `middleware.js` et au niveau des routes API (`exigerRole`) :
+L'accès à l'application est protégé par un système de contrôle d'accès basé sur les rôles (RBAC) vérifié à la fois par `middleware.js` et au niveau de toutes les routes API :
 
 | Rôle | Périmètre d'accès | Droits & Actions |
 | :--- | :--- | :--- |
-| **`super_admin`** | **Accès total** | Consultation de tous les tableaux, filtres, exports (Excel & PDF), déclenchement de la synchronisation manuelle, et accès exclusif à la gestion des utilisateurs (`/admin/utilisateurs`). |
-| **`admin`** | **Consultation & Opérationnel** | Consultation des pointages, affectations horaires, rapports de présences, utilisation de tous les filtres et téléchargement des exports Excel & PDF. Le bouton d'actualisation manuelle et la gestion des comptes sont masqués. |
+| **`super_admin`** | **Accès global sans restriction** | Consultation et gestion de l'intégralité des départements et agents, déclenchement de la synchronisation ZKBio manuelle, et accès exclusif à la gestion des utilisateurs (`/admin/utilisateurs`). |
+| **`admin`** | **Cloisonné aux départements affectés** | Consultation des pointages, suivi des horaires, anomalies et rapports de présences **strictement limités aux départements affectés** (et à leurs sous-départements récursifs). Les exports Excel et PDF mentionnent expressément le périmètre couvert. |
+
+### 🏢 Cloisonnement des données (Multi-départements & Hiérarchie)
+
+1. **Table de liaison `utilisateur_departements`** :
+   - Associe un compte administrateur (`admin`) à un ou plusieurs départements ZKBio (`auth_department.id`).
+   - Supprimée en cascade lors de la suppression de l'utilisateur (`ON DELETE CASCADE`).
+   - Le script SQL de migration est disponible dans [`scripts/migration-departements-admin.sql`](scripts/migration-departements-admin.sql).
+
+2. **Résolution hiérarchique récursive** :
+   - Les départements ZKBio sont structurés en arborescence (`parent_id`).
+   - La fonction `obtenirPerimetreDepartements` (`lib/perimetre.js`) effectue une requête récursive `WITH RECURSIVE` pour inclure automatiquement tous les sous-départements et divisions enfants d'un département affecté.
+
+3. **Sécurité serveur stricte (zéro contournement)** :
+   - Le périmètre est relu en base de données à chaque requête (non figé dans le JWT), garantissant une prise en compte immédiate de tout changement sans obliger l'utilisateur à se reconnecter.
+   - Les requêtes SQL vers le personnel (`pers_person`) et les départements sont systématiquement filtrées via des requêtes paramétrées `ANY($n)` pour interdire toute injection SQL.
+   - Toute tentative d'accès via l'URL ou un paramètre query à un matricule ou département hors périmètre est rejetée avec un code d'erreur **403 Forbidden**.
+
+4. **Interface d'administration & Exports** :
+   - Le `super_admin` dispose d'un sélecteur multiple de départements avec barre de recherche, boutons « Tout sélectionner / Tout désélectionner », et avertissement visuel si aucun département n'est attribué.
+   - La sidebar indique discrètement à l'administrateur son périmètre de consultation (avec infobulle de la liste complète).
+   - Les en-têtes et métadonnées de tous les exports **Excel** et **PDF** mentionnent explicitement les départements concernés.
 
 Les mots de passe sont hachés avec `bcryptjs` avec 12 tours de salt. Les sessions sont gérées par des jetons JWT chiffrés et stockés dans un cookie HTTP-only (`auth_token`).
 

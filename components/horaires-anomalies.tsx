@@ -22,6 +22,7 @@ import {
   Building,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePerimetre, perimetreExport } from "@/components/perimetre-context";
 import { Card } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { currentMonthRange, formatDateFr } from "@/lib/dates";
@@ -80,6 +81,8 @@ export function HorairesAnomalies() {
   const [fin, setFin] = useState(defaults.to);
   const [departement, setDepartement] = useState("all");
   const [recherche, setRecherche] = useState("");
+  const perimetreInfo = usePerimetre();
+  const perimetre = perimetreExport(perimetreInfo);
   const [typeFilter, setTypeFilter] = useState("all");
 
   const [departmentsList, setDepartmentsList] = useState<string[]>([]);
@@ -292,7 +295,7 @@ export function HorairesAnomalies() {
     setExporting(true);
     try {
       const { exportHorairesAnomaliesToExcel } = await import("@/lib/export-horaires");
-      await exportHorairesAnomaliesToExcel(filteredAnomalies, stats, debut, fin);
+      await exportHorairesAnomaliesToExcel(filteredAnomalies, stats, debut, fin, perimetre);
     } catch (e) {
       console.error("Export Excel error", e);
     } finally {
@@ -305,7 +308,7 @@ export function HorairesAnomalies() {
     setExporting(true);
     try {
       const { exportHorairesAnomaliesToPdf } = await import("@/lib/export-horaires");
-      await exportHorairesAnomaliesToPdf(filteredAnomalies, stats, debut, fin);
+      await exportHorairesAnomaliesToPdf(filteredAnomalies, stats, debut, fin, perimetre);
     } catch (e) {
       console.error("Export PDF error", e);
     } finally {

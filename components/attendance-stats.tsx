@@ -32,6 +32,7 @@ import { exportStatsToExcel, exportStatsToPdf, type StatsExportData } from "@/li
 import { getStatutTon, type StatutTon } from "@/lib/status";
 import type { PresenceRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { usePerimetre, perimetreExport } from "@/components/perimetre-context";
 
 interface AttendanceStatsProps {
   rows: PresenceRow[];
@@ -124,6 +125,8 @@ export function AttendanceStats({
   const [usersData, setUsersData] = useState<ConnectedUsersResponse | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
+  const perimetreInfo = usePerimetre();
+  const perimetre = perimetreExport(perimetreInfo);
 
   const fetchConnectedUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -314,7 +317,7 @@ export function AttendanceStats({
         statusCounts: stats.statusCounts,
         deptsList: sortedDepts,
       };
-      await exportStatsToPdf(exportData, from, to);
+      await exportStatsToPdf(exportData, from, to, perimetre);
     } finally {
       setExporting(null);
     }
@@ -334,7 +337,7 @@ export function AttendanceStats({
         statusCounts: stats.statusCounts,
         deptsList: sortedDepts,
       };
-      await exportStatsToExcel(exportData, from, to);
+      await exportStatsToExcel(exportData, from, to, perimetre);
     } finally {
       setExporting(null);
     }
