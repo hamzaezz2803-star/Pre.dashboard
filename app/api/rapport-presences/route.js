@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { targetPool } from '@/lib/db';
-import { exigerRole } from '@/lib/auth';
+import { conditionPerimetrePersonnel, exigerRoleAvecPerimetre } from '@/lib/perimetre';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -9,7 +9,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * Retourne les lignes du rapport des présences associées aux horaires affectés.
  */
 export async function GET(request) {
-  const auth = await exigerRole('admin', 'super_admin');
+  const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -36,6 +36,10 @@ export async function GET(request) {
       params.push(fin);
       conditions.push(`date_service <= $${params.length}`);
     }
+
+    // Cloisonnement obligatoire côté serveur : uniquement le personnel des départements autorisés
+    const condPerimetre = conditionPerimetrePersonnel(auth.perimetre, params, 'emp_id');
+    if (condPerimetre) conditions.push(condPerimetre);
 
     if (q) {
       params.push(`%${q}%`);

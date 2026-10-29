@@ -1,24 +1,20 @@
 import { NextResponse } from 'next/server';
-import { targetPool } from '@/lib/db';
-import { exigerRole } from '@/lib/auth';
+import { exigerRoleAvecPerimetre, listerDepartementsAutorises } from '@/lib/perimetre';
 
 /**
  * GET /api/affectation-horaire/departements
  * Retourne la liste des départements depuis la table auth_department.
+ * Pour un admin : uniquement les départements de son périmètre (sous-départements inclus).
  */
 export async function GET() {
-  const auth = await exigerRole('admin', 'super_admin');
+  const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
-    const { rows } = await targetPool.query(`
-      SELECT id, code, name
-      FROM auth_department
-      ORDER BY name ASC
-    `);
-    return NextResponse.json({ departements: rows });
+    const departements = await listerDepartementsAutorises(auth.perimetre);
+    return NextResponse.json({ departements });
   } catch (err) {
     console.error('[API Affectation Départements] Erreur :', err?.message);
     return NextResponse.json(

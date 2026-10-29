@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getBiotimePool } from '@/lib/biotime-db';
-import { exigerRole } from '@/lib/auth';
+import {
+  conditionPerimetrePersonnel,
+  departementNomAutorise,
+  exigerRoleAvecPerimetre,
+} from '@/lib/perimetre';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -9,10 +13,11 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * Lecture seule de la vue v_presence_jour (une ligne par employé et par jour).
  */
 export async function GET(request) {
-  const auth = await exigerRole('admin', 'super_admin');
+  const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const { perimetre } = auth;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -52,9 +57,16 @@ export async function GET(request) {
     const whereT = preT.length > 0 ? `WHERE ${preT.join(' AND ')}` : '';
     const andShift = preShift.join(' ');
     if (departement && departement !== 'all') {
+      // Un département hors périmètre est refusé : jamais de données renvoyées
+      if (!(await departementNomAutorise(perimetre, departement))) {
+        return NextResponse.json({ error: 'Accès refusé à ce département.' }, { status: 403 });
+      }
       params.push(departement);
       conditions.push(`dept_name = $${params.length}`);
     }
+    // Cloisonnement obligatoire côté serveur : uniquement le personnel des départements autorisés
+    const condPerimetre = conditionPerimetrePersonnel(perimetre, params, 'emp_code');
+    if (condPerimetre) conditions.push(condPerimetre);
     if (personnel) {
       params.push(`%${personnel}%`);
       const p = `$${params.length}`;

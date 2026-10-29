@@ -1,17 +1,26 @@
 import { NextResponse } from 'next/server';
 import { targetPool } from '@/lib/db';
-import { exigerRole } from '@/lib/auth';
+import {
+  conditionPerimetreDepartementId,
+  departementIdAutorise,
+  estPerimetreRestreint,
+  exigerRoleAvecPerimetre,
+} from '@/lib/perimetre';
 
 /**
  * GET /api/affectation-horaire/employes?deptId=...&q=...
  * Recherche et liste les employés de pers_person avec leur département (auth_department)
  * et leur statut d'affectation dynamique réel depuis employes_affectation_dynamique.
+ *
+ * Cloisonnement : un admin ne reçoit que les employés de son périmètre de départements ;
+ * un deptId hors périmètre est refusé (403).
  */
 export async function GET(request) {
-  const auth = await exigerRole('admin', 'super_admin');
+  const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const { perimetre } = auth;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -22,9 +31,19 @@ export async function GET(request) {
     const params = [];
 
     if (deptId && deptId !== 'all') {
+      if (!departementIdAutorise(perimetre, deptId)) {
+        return NextResponse.json(
+          { error: 'Accès refusé à ce département.', employes: [], activeIds: [] },
+          { status: 403 }
+        );
+      }
       params.push(deptId);
       conditions.push(`p.auth_dept_id = $${params.length}`);
     }
+
+    // Cloisonnement obligatoire côté serveur
+    const condPerimetre = conditionPerimetreDepartementId(perimetre, params, 'p.auth_dept_id');
+    if (condPerimetre) conditions.push(condPerimetre);
 
     if (q) {
       params.push(`%${q}%`);
@@ -60,12 +79,22 @@ export async function GET(request) {
 
     const { rows } = await targetPool.query(query, params);
 
-    // Récupérer tous les identifiants actifs dans la base pour préserver la sélection globale
-    const { rows: allActive } = await targetPool.query(`
-      SELECT cvaccess_person_id 
-      FROM employes_affectation_dynamique 
-      WHERE actif = true
-    `);
+    // Identifiants actifs (sélection globale) : restreints au périmètre pour un admin
+    const activeParams = [];
+    let activeQuery = `
+      SELECT e.cvaccess_person_id
+      FROM employes_affectation_dynamique e
+      WHERE e.actif = true
+    `;
+    if (estPerimetreRestreint(perimetre)) {
+      activeParams.push(perimetre);
+      activeQuery += `
+        AND e.cvaccess_person_id IN (
+          SELECT pp.id FROM pers_person pp WHERE pp.auth_dept_id = ANY($1::text[])
+        )
+      `;
+    }
+    const { rows: allActive } = await targetPool.query(activeQuery, activeParams);
 
     return NextResponse.json({
       employes: rows,

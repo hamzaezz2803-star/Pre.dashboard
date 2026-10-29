@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { exigerRole } from '@/lib/auth';
+import { employePinAutorise, exigerRoleAvecPerimetre } from '@/lib/perimetre';
 import { targetPool } from '@/lib/db';
 
 /**
@@ -7,7 +7,7 @@ import { targetPool } from '@/lib/db';
  * Retourne la chronologie exacte des pointages (Entrée, Sortie, Pauses) d'un employé pour un jour donné.
  */
 export async function GET(request) {
-  const auth = await exigerRole('admin', 'super_admin');
+  const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -23,6 +23,11 @@ export async function GET(request) {
         { error: 'Les paramètres pin et date sont requis.' },
         { status: 400 }
       );
+    }
+
+    // Cloisonnement : l'employé demandé doit appartenir aux départements autorisés
+    if (!(await employePinAutorise(auth.perimetre, pin))) {
+      return NextResponse.json({ error: 'Accès refusé à cet employé.' }, { status: 403 });
     }
 
     // Si dateFin n'a pas été explicitement spécifié et qu'il s'agit d'un horaire de nuit

@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { targetPool } from '@/lib/db';
 import { runSync, syncState } from '@/lib/sync';
-import { exigerRole } from '@/lib/auth';
+import {
+  conditionPerimetrePersonnel,
+  departementNomAutorise,
+  exigerRoleAvecPerimetre,
+} from '@/lib/perimetre';
 import { getEventTimesByEmployee } from '@/lib/queries';
 
 /**
@@ -12,7 +16,7 @@ const SYNC_INTERVAL_MS = SEUIL_SYNC_MIN * 60 * 1000;
 
 export async function GET(request) {
   // Contrôle d'accès : réservé aux rôles admin et super_admin
-  const auth = await exigerRole('admin', 'super_admin');
+  const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -55,9 +59,17 @@ export async function GET(request) {
     }
 
     if (departement && departement.trim() !== '' && departement !== 'all') {
+      // Un département hors périmètre est refusé : jamais de données renvoyées
+      if (!(await departementNomAutorise(auth.perimetre, departement.trim()))) {
+        return NextResponse.json({ error: 'Accès refusé à ce département.' }, { status: 403 });
+      }
       params.push(departement.trim());
       conditions.push(`departement = $${params.length}`);
     }
+
+    // Cloisonnement obligatoire côté serveur : uniquement le personnel des départements autorisés
+    const condPerimetre = conditionPerimetrePersonnel(auth.perimetre, params, 'id');
+    if (condPerimetre) conditions.push(condPerimetre);
 
     if (personnel && personnel.trim() !== '') {
       params.push(`%${personnel.trim()}%`);
