@@ -1,6 +1,6 @@
 import type { PresenceRow } from "./types";
 import { formatDateFr, formatDurationLong } from "./dates";
-import { downloadBlob, loadLogoPng } from "./export-utils";
+import { downloadBlob, libelleDepartements, loadLogoPng } from "./export-utils";
 import { formatStatut } from "./status";
 
 /** Génère et télécharge un PDF paysage A4 des lignes données. */
@@ -8,6 +8,7 @@ export async function exportAttendanceToPdf(
   rows: PresenceRow[],
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -40,6 +41,12 @@ export async function exportAttendanceToPdf(
     75,
   );
 
+  doc.text(
+    `Départements : ${libelleDepartements(rows.map((r) => r.deptName), perimetre, 160)}`,
+    textX,
+    88,
+  );
+
   const body = rows.map((r) => [
     r.empCode,
     r.lastName,
@@ -56,7 +63,7 @@ export async function exportAttendanceToPdf(
   ]);
 
   autoTable(doc, {
-    startY: 92,
+    startY: 100,
     margin: { left: margin, right: margin, bottom: 36 },
     head: [["ID", "Nom", "Prénom", "Prestation", "Date", "1er pointage", "Dernier pointage", "Nb pointages", "Temps de présence", "Statut"]],
     body,

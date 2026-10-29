@@ -1,5 +1,5 @@
 import { formatDateFr, formatDurationLong } from "./dates";
-import { downloadBlob, loadLogoPng } from "./export-utils";
+import { downloadBlob, libelleDepartements, loadLogoPng } from "./export-utils";
 
 const GREEN_OCP = "FF0F6B4F";
 const ZEBRA_ROW = "FFF8FAF9";
@@ -60,6 +60,7 @@ export async function exportHorairesSuiviToExcel(
   stats: SuiviStats,
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
@@ -108,7 +109,7 @@ export async function exportHorairesSuiviToExcel(
   title.alignment = { vertical: "middle" };
 
   const period = ws.getCell(2, 3);
-  period.value = `Période d'analyse : du ${formatDateFr(from)} au ${formatDateFr(to)} · Extraction certifiée ZKBio CVAccess`;
+  period.value = `Période d'analyse : du ${formatDateFr(from)} au ${formatDateFr(to)} · Départements : ${libelleDepartements(rows.map((r) => r.deptName), perimetre, 80)} · Extraction certifiée ZKBio CVAccess`;
   period.font = { name: "Calibri", size: 10.5, color: { argb: "FF2D3748" } };
 
   const meta = ws.getCell(3, 3);
@@ -276,6 +277,7 @@ export async function exportHorairesSuiviToPdf(
   stats: SuiviStats,
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -305,7 +307,7 @@ export async function exportHorairesSuiviToPdf(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.setTextColor(60, 70, 66);
-  doc.text(`Période du ${formatDateFr(from)} au ${formatDateFr(to)}  ·  Extraction certifiée ZKBio CVAccess`, textX, 50);
+  doc.text(`Période du ${formatDateFr(from)} au ${formatDateFr(to)}  ·  Départements : ${libelleDepartements(rows.map((r) => r.deptName), perimetre, 60)}  ·  Extraction certifiée ZKBio CVAccess`, textX, 50);
   doc.text(
     `Document officiel généré le ${new Date().toLocaleString("fr-FR")}  ·  ${rows.length} enregistrements analysés`,
     textX,
@@ -403,6 +405,7 @@ export async function exportHorairesAnomaliesToExcel(
   stats: AnomaliesStats,
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
@@ -447,7 +450,7 @@ export async function exportHorairesAnomaliesToExcel(
   title.alignment = { vertical: "middle" };
 
   const period = ws.getCell(2, 3);
-  period.value = `Période du ${formatDateFr(from)} au ${formatDateFr(to)} · Contrôle d'assiduité et conformité horaire`;
+  period.value = `Période du ${formatDateFr(from)} au ${formatDateFr(to)} · Départements : ${libelleDepartements(anomalies.map((a) => a.deptName), perimetre, 80)} · Contrôle d'assiduité et conformité horaire`;
   period.font = { name: "Calibri", size: 10.5, color: { argb: "FF2D3748" } };
 
   const meta = ws.getCell(3, 3);
@@ -568,6 +571,7 @@ export async function exportHorairesAnomaliesToPdf(
   stats: AnomaliesStats,
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -595,7 +599,7 @@ export async function exportHorairesAnomaliesToPdf(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.setTextColor(60, 70, 66);
-  doc.text(`Période du ${formatDateFr(from)} au ${formatDateFr(to)}  ·  Contrôle de conformité et régularisations RH`, textX, 50);
+  doc.text(`Période du ${formatDateFr(from)} au ${formatDateFr(to)}  ·  Départements : ${libelleDepartements(anomalies.map((a) => a.deptName), perimetre, 60)}  ·  Contrôle de conformité et régularisations RH`, textX, 50);
   doc.text(
     `Document confidentiel généré le ${new Date().toLocaleString("fr-FR")}  ·  ${anomalies.length} anomalies identifiées`,
     textX,

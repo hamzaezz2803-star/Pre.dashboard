@@ -1,6 +1,6 @@
 import type { PresenceRow } from "./types";
 import { formatDateFr, formatDurationLong } from "./dates";
-import { downloadBlob, loadLogoPng } from "./export-utils";
+import { downloadBlob, libelleDepartements, loadLogoPng } from "./export-utils";
 import { formatStatut } from "./status";
 
 const GREEN = "FF0F6B4F";
@@ -13,6 +13,7 @@ export async function exportAttendanceToExcel(
   rows: PresenceRow[],
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
@@ -52,6 +53,10 @@ export async function exportAttendanceToExcel(
   const generated = ws.getCell(3, 3);
   generated.value = `Généré le ${new Date().toLocaleString("fr-FR")} · ${rows.length} ligne${rows.length > 1 ? "s" : ""}`;
   generated.font = { name: "Calibri", size: 10, italic: true, color: { argb: "FF55645D" } };
+  ws.mergeCells(4, 3, 4, lastCol);
+  const depts = ws.getCell(4, 3);
+  depts.value = `Départements : ${libelleDepartements(rows.map((r) => r.deptName), perimetre, 140)}`;
+  depts.font = { name: "Calibri", size: 10, bold: true, color: { argb: GREEN } };
 
   const logo = await loadLogoPng();
   if (logo) {

@@ -1,5 +1,5 @@
 import { formatDateFr, formatDurationLong } from "./dates";
-import { downloadBlob, loadLogoPng } from "./export-utils";
+import { downloadBlob, libelleDepartements, loadLogoPng } from "./export-utils";
 
 export interface DepartmentStatItem {
   name: string;
@@ -36,6 +36,7 @@ export async function exportStatsToPdf(
   data: StatsExportData,
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -64,7 +65,11 @@ export async function exportStatsToPdf(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(60, 70, 66);
-  doc.text(`Période d'analyse : du ${formatDateFr(from)} au ${formatDateFr(to)}`, textX, 58);
+  doc.text(
+    `Période d'analyse : du ${formatDateFr(from)} au ${formatDateFr(to)}  ·  Départements : ${libelleDepartements(data.deptsList.map((d) => d.name), perimetre, 70)}`,
+    textX,
+    58,
+  );
   doc.text(
     `Généré le ${new Date().toLocaleString("fr-FR")} · ${data.totalRecords} pointages analysés sur ${data.uniqueDays} jours`,
     textX,
@@ -155,6 +160,7 @@ export async function exportStatsToExcel(
   data: StatsExportData,
   from: string,
   to: string,
+  perimetre?: string[] | null,
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
@@ -188,7 +194,7 @@ export async function exportStatsToExcel(
 
   wsDept.mergeCells("A2:I2");
   const sub = wsDept.getCell("A2");
-  sub.value = `Période : du ${formatDateFr(from)} au ${formatDateFr(to)}  |  Généré le ${new Date().toLocaleString("fr-FR")}`;
+  sub.value = `Période : du ${formatDateFr(from)} au ${formatDateFr(to)}  |  Départements : ${libelleDepartements(data.deptsList.map((d) => d.name), perimetre, 70)}  |  Généré le ${new Date().toLocaleString("fr-FR")}`;
   sub.font = { name: "Calibri", size: 11, italic: true };
 
   // Données départements

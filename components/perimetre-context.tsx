@@ -22,6 +22,11 @@ const PerimetreContext = createContext<PerimetreInfo>(PERIMETRE_PAR_DEFAUT);
 
 export const PerimetreProvider = PerimetreContext.Provider;
 
+/** Périmètre à transmettre aux fonctions d'export : liste des départements effectifs, ou null (accès total). */
+export function perimetreExport(info: PerimetreInfo): string[] | null {
+  return info.restreint ? info.effectifs : null;
+}
+
 export function usePerimetre(): PerimetreInfo {
   return useContext(PerimetreContext);
 }

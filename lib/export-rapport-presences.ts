@@ -1,4 +1,4 @@
-import { downloadBlob, loadLogoPng } from "./export-utils";
+import { downloadBlob, libelleDepartements, loadLogoPng } from "./export-utils";
 
 export interface RapportPresenceRow {
   emp_id: string;
@@ -19,7 +19,8 @@ const ZEBRA_COLOR = "FFF8FAF9";
 export async function exportRapportPresenceExcel(
   rows: RapportPresenceRow[],
   debut: string,
-  fin: string
+  fin: string,
+  perimetre?: string[] | null
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
@@ -50,7 +51,7 @@ export async function exportRapportPresenceExcel(
   ws.getRow(2).height = 20;
   ws.mergeCells(2, 1, 2, 4);
   const periodCell = ws.getCell(2, 1);
-  periodCell.value = `Période : Du ${debut || "Début"} Au ${fin || "Fin"}  ·  Total : ${rows.length} enregistrement(s)`;
+  periodCell.value = `Période : Du ${debut || "Début"} Au ${fin || "Fin"}  ·  Total : ${rows.length} enregistrement(s)  ·  Départements : ${libelleDepartements(rows.map((r) => r.departement), perimetre, 60)}`;
   periodCell.font = { name: "Arial", size: 10, italic: true, color: { argb: "FF475569" } };
   periodCell.alignment = { vertical: "middle", horizontal: "left" };
 
@@ -127,7 +128,8 @@ export async function exportRapportPresenceExcel(
 export async function exportRapportPresencePdf(
   rows: RapportPresenceRow[],
   debut: string,
-  fin: string
+  fin: string,
+  perimetre?: string[] | null
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -161,7 +163,11 @@ export async function exportRapportPresencePdf(
     textX,
     58
   );
-  doc.text(`Total : ${rows.length} pointage(s) enregistré(s)`, textX, 70);
+  doc.text(
+    `Total : ${rows.length} pointage(s) enregistré(s)  ·  Départements : ${libelleDepartements(rows.map((r) => r.departement), perimetre, 48)}`,
+    textX,
+    70,
+  );
 
   // Ligne de séparation verte
   doc.setDrawColor(...greenOcp);
