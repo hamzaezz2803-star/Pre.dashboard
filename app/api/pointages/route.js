@@ -5,9 +5,9 @@ import { exigerRole } from '@/lib/auth';
 import { getEventTimesByEmployee } from '@/lib/queries';
 
 /**
- * Seuil en minutes avant déclenchement d'une nouvelle synchronisation automatique (défaut : 1).
+ * Seuil en minutes avant déclenchement d'une nouvelle synchronisation automatique (défaut : 15).
  */
-const SEUIL_SYNC_MIN = 1;
+const SEUIL_SYNC_MIN = 15;
 const SYNC_INTERVAL_MS = SEUIL_SYNC_MIN * 60 * 1000;
 
 export async function GET(request) {

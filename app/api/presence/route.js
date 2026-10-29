@@ -33,15 +33,24 @@ export async function GET(request) {
 
     const conditions = [];
     const params = [];
+    // Filtres de dates réutilisés pour limiter tôt les CTE lourdes (performance)
+    const preT = [];
+    const preShift = [];
 
     if (debut) {
       params.push(debut);
       conditions.push(`jour >= $${params.length}`);
+      preT.push(`att_datetime >= $${params.length}::date`);
+      preShift.push(`AND a.date_service >= $${params.length}::date`);
     }
     if (fin) {
       params.push(fin);
       conditions.push(`jour <= $${params.length}`);
+      preT.push(`att_datetime < ($${params.length}::date + 1)`);
+      preShift.push(`AND a.date_service <= $${params.length}::date`);
     }
+    const whereT = preT.length > 0 ? `WHERE ${preT.join(' AND ')}` : '';
+    const andShift = preShift.join(' ');
     if (departement && departement !== 'all') {
       params.push(departement);
       conditions.push(`dept_name = $${params.length}`);
@@ -94,7 +103,7 @@ export async function GET(request) {
         JOIN pers_person p ON p.id = a.cvaccess_person_id
         LEFT JOIN cvaccess_horaires h ON h.cvaccess_horaire_id = a.cvaccess_horaire_id
         LEFT JOIN auth_department d ON d.id = p.auth_dept_id
-        WHERE a.heure_entree IS NOT NULL
+        WHERE a.heure_entree IS NOT NULL ${andShift}
       ),
       t AS (
         SELECT
@@ -104,6 +113,7 @@ export async function GET(request) {
           ROW_NUMBER() OVER (PARTITION BY pers_person_pin, CAST(att_datetime AS DATE) ORDER BY att_datetime) AS rn,
           LEAD(att_datetime) OVER (PARTITION BY pers_person_pin, CAST(att_datetime AS DATE) ORDER BY att_datetime) AS nxt
         FROM att_transaction
+        ${whereT}
       ),
       calc AS (
         SELECT pin, jour,
