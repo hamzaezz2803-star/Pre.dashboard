@@ -14,7 +14,10 @@ CREATE INDEX IF NOT EXISTS idx_affect_dyn_person
 
 CREATE INDEX IF NOT EXISTS idx_pers_person_pin ON pers_person (pin);
 CREATE INDEX IF NOT EXISTS idx_pers_person_dept ON pers_person (auth_dept_id);
-CREATE INDEX IF NOT EXISTS idx_att_record_pin_date ON att_record (pers_person_pin, att_date);
+-- INDEX CRITIQUE : la vue v_presence_jour cherche dans att_record pour chaque (employe, jour).
+-- Sans lui : 8916 lectures completes de la table = 73 secondes.
+CREATE INDEX IF NOT EXISTS idx_att_record_lookup
+  ON att_record ((pers_person_pin::text), ((att_date)::date), update_time DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_pointage_jour_date ON pointage_journalier (date_pointage);
 
 ANALYZE;

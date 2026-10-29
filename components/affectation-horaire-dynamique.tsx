@@ -948,12 +948,23 @@ export function AffectationHoraireDynamique() {
                   onChange={(e) => setFormSelectedHoraireId(e.target.value)}
                   className="w-full px-2.5 py-1.5 rounded-md border border-border bg-surface text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
                 >
-                  {cvHoraires.map((h) => (
-                    <option key={h.cvaccess_horaire_id} value={h.cvaccess_horaire_id}>
-                      {h.period_name} {h.to_work_time ? `(${h.to_work_time.slice(0, 5)} - ${h.off_work_time?.slice(0, 5)})` : ""}
+                  {cvHoraires.length === 0 ? (
+                    <option value="" disabled>
+                      Aucun horaire disponible (veuillez synchroniser avec CVAccess)
                     </option>
-                  ))}
+                  ) : (
+                    cvHoraires.map((h) => (
+                      <option key={h.cvaccess_horaire_id} value={h.cvaccess_horaire_id}>
+                        {h.period_name} {h.to_work_time ? `(${h.to_work_time.slice(0, 5)} - ${h.off_work_time?.slice(0, 5)})` : ""}
+                      </option>
+                    ))
+                  )}
                 </select>
+                {cvHoraires.length === 0 && (
+                  <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                    ⚠️ La table des horaires est vide. Fermez cette fenêtre et cliquez sur le bouton vert <strong>&quot;Synchroniser&quot;</strong> en haut à droite.
+                  </p>
+                )}
               </div>
 
               {/* Jours d'application compacts avec raccourcis */}
