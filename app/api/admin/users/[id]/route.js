@@ -2,15 +2,26 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { targetPool } from '@/lib/db';
 import { exigerRole } from '@/lib/auth';
+import {
+  MESSAGE_MIGRATION_DEPARTEMENTS,
+  lireAffectationsDepartements,
+  remplacerAffectationsDepartements,
+} from '@/lib/perimetre';
+
+/** Avertissement renvoyé lorsqu'un admin n'a aucun département (il ne verra aucune donnée). */
+const AVERTISSEMENT_SANS_DEPARTEMENT =
+  "Cet administrateur n'a aucun département affecté : il ne verra aucune donnée tant qu'un département ne lui sera pas attribué.";
 
 /**
  * Route PATCH /api/admin/users/[id]
- * Modifie un utilisateur (nom complet, rôle, statut actif) ou réinitialise son mot de passe.
+ * Modifie un utilisateur (nom complet, rôle, statut actif, départements) ou réinitialise son mot de passe.
  * Règles appliquées :
  * - Rôle super_admin obligatoire
  * - Un super_admin ne peut pas se désactiver ni se retirer son rôle
  * - Il doit toujours exister au moins un super_admin actif
  * - Mot de passe haché avec bcrypt (12 tours), jamais renvoyé
+ * - `departement_ids` remplace le périmètre d'un admin ; un super_admin n'a jamais de périmètre
+ *   (accès total implicite) : ses affectations éventuelles sont supprimées à la promotion.
  */
 export async function PATCH(request, context) {
   const auth = await exigerRole('super_admin');
@@ -31,9 +42,10 @@ export async function PATCH(request, context) {
     return NextResponse.json({ error: 'Corps de requête JSON invalide.' }, { status: 400 });
   }
 
+  const client = await targetPool.connect();
   try {
     // Vérifier l'existence de l'utilisateur cible
-    const targetRes = await targetPool.query(
+    const targetRes = await client.query(
       'SELECT id, username, full_name, role, active FROM users WHERE id = $1;',
       [targetId]
     );
@@ -45,7 +57,7 @@ export async function PATCH(request, context) {
     const targetUser = targetRes.rows[0];
     const currentUserId = auth.id;
 
-    const { full_name, role, active, password } = body;
+    const { full_name, role, active, password, departement_ids } = body;
 
     // Règle 1 : Un super_admin ne peut pas se désactiver ni se retirer son rôle
     if (targetId === currentUserId) {
@@ -69,7 +81,7 @@ export async function PATCH(request, context) {
     const willDemote = role !== undefined && role !== 'super_admin';
 
     if (isTargetActiveSuperAdmin && (willDeactivate || willDemote)) {
-      const countRes = await targetPool.query(
+      const countRes = await client.query(
         "SELECT COUNT(*) AS count FROM users WHERE role = 'super_admin' AND active = true;"
       );
       const activeSuperCount = parseInt(countRes.rows[0]?.count || '0', 10);
@@ -123,34 +135,87 @@ export async function PATCH(request, context) {
       values.push(password_hash);
     }
 
-    if (updates.length === 0) {
+    // Départements : tableau d'identifiants auth_department
+    const veutAffecter = departement_ids !== undefined;
+    if (veutAffecter && !Array.isArray(departement_ids)) {
+      return NextResponse.json(
+        { error: 'departement_ids doit être un tableau d\'identifiants de départements.' },
+        { status: 400 }
+      );
+    }
+
+    if (updates.length === 0 && !veutAffecter) {
       return NextResponse.json({ error: 'Aucun champ valide à mettre à jour.' }, { status: 400 });
     }
 
-    updates.push(`updated_at = NOW()`);
-    values.push(targetId);
+    const roleFinal = role !== undefined ? role : targetUser.role;
 
-    const query = `
-      UPDATE users
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING id, username, full_name, role, active, created_at, updated_at;
-    `;
+    await client.query('BEGIN');
 
-    const updateRes = await targetPool.query(query, values);
-    return NextResponse.json(updateRes.rows[0]);
+    let utilisateur;
+    if (updates.length > 0) {
+      updates.push(`updated_at = NOW()`);
+      values.push(targetId);
+
+      const query = `
+        UPDATE users
+        SET ${updates.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING id, username, full_name, role, active, created_at, updated_at;
+      `;
+      const updateRes = await client.query(query, values);
+      utilisateur = updateRes.rows[0];
+    } else {
+      const lecture = await client.query(
+        'SELECT id, username, full_name, role, active, created_at, updated_at FROM users WHERE id = $1;',
+        [targetId]
+      );
+      utilisateur = lecture.rows[0];
+    }
+
+    // Périmètre de départements
+    if (roleFinal === 'super_admin') {
+      // Accès total implicite : aucune affectation conservée
+      if (targetUser.role !== 'super_admin') {
+        await client.query('DELETE FROM utilisateur_departements WHERE utilisateur_id = $1', [targetId]);
+      }
+    } else if (veutAffecter) {
+      await remplacerAffectationsDepartements(client, targetId, departement_ids);
+    }
+
+    await client.query('COMMIT');
+
+    // Relecture des affectations pour la réponse
+    const reponse = { ...utilisateur, departements: [] };
+    if (utilisateur.role === 'admin') {
+      const affectations = await lireAffectationsDepartements([targetId]);
+      reponse.departements = affectations.get(targetId) ?? [];
+      if (reponse.departements.length === 0) {
+        reponse.avertissement = AVERTISSEMENT_SANS_DEPARTEMENT;
+      }
+    }
+
+    return NextResponse.json(reponse);
   } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
     console.error('[API Admin Users PATCH] Erreur :', error?.message);
+    if (error?.code === '42P01') {
+      return NextResponse.json({ error: MESSAGE_MIGRATION_DEPARTEMENTS }, { status: 500 });
+    }
     return NextResponse.json(
       { error: 'Erreur lors de la mise à jour de l\'utilisateur.' },
       { status: 500 }
     );
+  } finally {
+    client.release();
   }
 }
 
 /**
  * Route DELETE /api/admin/users/[id]
- * Supprime définitivement un utilisateur.
+ * Supprime définitivement un utilisateur (ses affectations de départements sont supprimées en cascade).
  * Règles appliquées :
  * - Rôle super_admin obligatoire
  * - Un super_admin ne peut pas se supprimer lui-même

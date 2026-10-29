@@ -6,14 +6,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Sidebar, type SidebarUser } from "@/components/sidebar";
+import { PerimetreProvider, type PerimetreInfo } from "@/components/perimetre-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 interface AppShellProps {
   user: SidebarUser;
+  perimetre?: PerimetreInfo;
   children: React.ReactNode;
 }
 
-export function AppShell({ user, children }: AppShellProps) {
+const PERIMETRE_VIDE: PerimetreInfo = { restreint: false, departements: [], effectifs: [] };
+
+export function AppShell({ user, perimetre = PERIMETRE_VIDE, children }: AppShellProps) {
+  return (
+    <PerimetreProvider value={perimetre}>
+      <AppShellContenu user={user}>{children}</AppShellContenu>
+    </PerimetreProvider>
+  );
+}
+
+function AppShellContenu({ user, children }: Pick<AppShellProps, "user" | "children">) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();

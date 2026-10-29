@@ -1,9 +1,43 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { lireSession } from "@/lib/auth";
+import {
+  estPerimetreRestreint,
+  lireAffectationsDepartements,
+  listerDepartementsAutorises,
+  obtenirPerimetreDepartements,
+} from "@/lib/perimetre";
 import { AppShell } from "@/components/app-shell";
+import type { PerimetreInfo } from "@/components/perimetre-context";
 
 export const instant = false;
+
+/** Calcule le périmètre à afficher (sidebar, exports). En cas d'erreur pour un admin : périmètre vide. */
+async function lirePerimetreAffichage(user: {
+  id: number;
+  role: string;
+}): Promise<PerimetreInfo> {
+  if (user.role === "super_admin") {
+    return { restreint: false, departements: [], effectifs: [] };
+  }
+  try {
+    const perimetre = await obtenirPerimetreDepartements(user);
+    if (!estPerimetreRestreint(perimetre)) {
+      return { restreint: false, departements: [], effectifs: [] };
+    }
+    const [effectifs, directs] = await Promise.all([
+      listerDepartementsAutorises(perimetre),
+      lireAffectationsDepartements([user.id]),
+    ]);
+    return {
+      restreint: true,
+      departements: (directs.get(user.id) ?? []).map((d: { name: string }) => d.name),
+      effectifs: effectifs.map((d: { name: string }) => d.name),
+    };
+  } catch {
+    return { restreint: true, departements: [], effectifs: [] };
+  }
+}
 
 async function LayoutContent({ children }: { children: React.ReactNode }) {
   const user = await lireSession();
@@ -11,6 +45,8 @@ async function LayoutContent({ children }: { children: React.ReactNode }) {
   if (!user) {
     redirect("/login");
   }
+
+  const perimetre = await lirePerimetreAffichage(user);
 
   return (
     <AppShell
@@ -20,6 +56,7 @@ async function LayoutContent({ children }: { children: React.ReactNode }) {
         full_name: user.full_name,
         role: user.role,
       }}
+      perimetre={perimetre}
     >
       {children}
     </AppShell>

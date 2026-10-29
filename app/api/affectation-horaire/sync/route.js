@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sourcePool, targetPool } from '@/lib/db';
-import { exigerRole } from '@/lib/auth';
+import { estPerimetreRestreint, exigerRoleAvecPerimetre } from '@/lib/perimetre';
 
 /**
  * POST /api/affectation-horaire/sync
@@ -8,7 +8,7 @@ import { exigerRole } from '@/lib/auth';
  * Permet à l'utilisateur de recevoir immédiatement tout nouveau département ou employé ajouté dans CVAccess.
  */
 export async function POST() {
-  const auth = await exigerRole('admin', 'super_admin');
+  const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -164,6 +164,14 @@ export async function POST() {
     }
 
     await dstClient.query('COMMIT');
+
+    // Un admin cloisonné ne doit pas connaître les effectifs globaux (hors de son périmètre)
+    if (estPerimetreRestreint(auth.perimetre)) {
+      return NextResponse.json({
+        success: true,
+        message: 'Synchronisation CVAccess réussie : données des départements, employés et horaires à jour.',
+      });
+    }
 
     return NextResponse.json({
       success: true,

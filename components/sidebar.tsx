@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
+import { usePerimetre } from "@/components/perimetre-context";
 
 export interface SidebarUser {
   id: number;
@@ -135,6 +136,7 @@ export function Sidebar({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const isSuperAdmin = user.role === "super_admin";
+  const perimetre = usePerimetre();
 
   async function handleLogout() {
     if (isLoggingOut) return;
@@ -286,6 +288,29 @@ export function Sidebar({
                       <span className="text-[10px] text-muted-foreground">Consultation & rapports</span>
                     </div>
                   </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Périmètre de départements (admin cloisonné) */}
+          {!collapsed && perimetre.restreint && (
+            <div className="px-2">
+              <div
+                className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[11px] leading-snug"
+                title={
+                  perimetre.effectifs.length > 0
+                    ? `Périmètre effectif (sous-départements inclus) : ${perimetre.effectifs.join(", ")}`
+                    : "Aucun département affecté"
+                }
+              >
+                <span className="font-semibold text-foreground">Départements :</span>{" "}
+                {perimetre.departements.length > 0 ? (
+                  <span className="text-muted-foreground">{perimetre.departements.join(", ")}</span>
+                ) : (
+                  <span className="font-medium text-amber-600 dark:text-amber-400">
+                    aucun affecté — contactez un super administrateur
+                  </span>
                 )}
               </div>
             </div>
