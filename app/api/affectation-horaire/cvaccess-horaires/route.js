@@ -45,6 +45,8 @@ export async function GET() {
         `);
 
         if (srcRows && srcRows.length > 0) {
+          const cleanTime = (v) => (v && String(v).trim() !== '' ? String(v).trim() : null);
+
           for (const h of srcRows) {
             await targetPool.query(
               `
@@ -73,11 +75,11 @@ export async function GET() {
               [
                 h.id,
                 h.period_name,
-                h.to_work_time || null,
-                h.off_work_time || null,
+                cleanTime(h.to_work_time),
+                cleanTime(h.off_work_time),
                 h.working_hours || null,
-                h.start_sign_in_time || null,
-                h.end_sign_off_time || null,
+                cleanTime(h.start_sign_in_time),
+                cleanTime(h.end_sign_off_time),
                 h.update_time || null,
               ]
             );

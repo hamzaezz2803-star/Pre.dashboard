@@ -961,9 +961,17 @@ export function AffectationHoraireDynamique() {
                   )}
                 </select>
                 {cvHoraires.length === 0 && (
-                  <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                    ⚠️ La table des horaires est vide. Fermez cette fenêtre et cliquez sur le bouton vert <strong>&quot;Synchroniser&quot;</strong> en haut à droite.
-                  </p>
+                  <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs">
+                    <span>⚠️ Les horaires de CVAccess ne sont pas encore chargés.</span>
+                    <button
+                      type="button"
+                      onClick={handleSync}
+                      disabled={syncing}
+                      className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-bold rounded bg-primary text-white hover:bg-primary/90 cursor-pointer disabled:opacity-50 transition-colors"
+                    >
+                      {syncing ? "Synchronisation en cours..." : "Synchroniser maintenant"}
+                    </button>
+                  </div>
                 )}
               </div>
 
