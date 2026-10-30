@@ -39,11 +39,21 @@ interface User {
   departements?: UserDepartment[];
 }
 
-interface DepartmentOption {
+interface SousDepartmentItem {
+  id: string;
+  code: string;
+  name: string;
+  parent_id: string;
+  niveau: number;
+  chemin: string;
+}
+
+interface ParentDepartmentTree {
   id: string;
   code?: string;
   name: string;
-  parent_id?: string | null;
+  nb_sous_departements: number;
+  sous_departements?: SousDepartmentItem[];
 }
 
 interface CurrentUser {
@@ -51,6 +61,26 @@ interface CurrentUser {
   username: string;
   full_name: string | null;
   role: string;
+}
+
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  const q = query.trim().toLowerCase();
+  if (!q) return <span>{text}</span>;
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx === -1) return <span>{text}</span>;
+  const before = text.slice(0, idx);
+  const match = text.slice(idx, idx + q.length);
+  const after = text.slice(idx + q.length);
+  return (
+    <span>
+      {before}
+      <mark className="bg-amber-300 dark:bg-amber-500/80 text-foreground font-semibold px-0.5 rounded-xs">
+        {match}
+      </mark>
+      {after}
+    </span>
+  );
 }
 
 function formatDate(dateStr: string): string {
@@ -61,27 +91,38 @@ function formatDate(dateStr: string): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Sélecteur multiple de départements avec recherche et actions rapides */
+/** Sélecteur hiérarchique de départements parents avec aperçu en arbre des sous-départements */
 function DepartementSelector({
   departements,
   selectedIds,
   onChange,
   disabled = false,
 }: {
-  departements: DepartmentOption[];
+  departements: ParentDepartmentTree[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
 }) {
   const [recherche, setRecherche] = useState("");
+  // État de repli/dépliement des cartes d'aperçu par ID de parent (dépliées par défaut)
+  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
 
-  const filtered = departements.filter((d) => {
-    const q = recherche.trim().toLowerCase();
+  const q = recherche.trim().toLowerCase();
+
+  // Filtrage bidirectionnel : un parent est affiché si son nom/code matche OU si un de ses sous-départements matche
+  const filteredParents = departements.filter((p) => {
     if (!q) return true;
-    return (
-      d.name.toLowerCase().includes(q) ||
-      (d.code && d.code.toLowerCase().includes(q))
+    const parentMatches =
+      p.name.toLowerCase().includes(q) ||
+      (p.code && p.code.toLowerCase().includes(q));
+    if (parentMatches) return true;
+
+    const subMatches = (p.sous_departements || []).some(
+      (sd) =>
+        sd.name.toLowerCase().includes(q) ||
+        (sd.code && sd.code.toLowerCase().includes(q))
     );
+    return subMatches;
   });
 
   const selectedSet = new Set(selectedIds.map(String));
@@ -98,34 +139,45 @@ function DepartementSelector({
 
   function selectAll() {
     if (disabled) return;
-    const toAdd = filtered.map((d) => String(d.id));
+    const toAdd = filteredParents.map((d) => String(d.id));
     const merged = Array.from(new Set([...selectedIds.map(String), ...toAdd]));
     onChange(merged);
   }
 
   function deselectAll() {
     if (disabled) return;
-    if (!recherche.trim()) {
+    if (!q) {
       onChange([]);
     } else {
-      const toRemove = new Set(filtered.map((d) => String(d.id)));
+      const toRemove = new Set(filteredParents.map((d) => String(d.id)));
       onChange(selectedIds.filter((id) => !toRemove.has(String(id))));
     }
   }
 
+  function toggleCollapse(parentId: string) {
+    setCollapsedMap((prev) => ({
+      ...prev,
+      [parentId]: !prev[parentId],
+    }));
+  }
+
+  // Parents actuellement sélectionnés avec leurs données d'arbre complètes
+  const checkedParents = departements.filter((p) => selectedSet.has(String(p.id)));
+
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-1">
-        <label className="text-xs font-medium flex items-center gap-1.5">
+    <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3.5">
+      {/* En-tête : compteur des parents et actions rapides */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
           <Building2 className="size-3.5 text-primary" aria-hidden="true" />
-          Départements attribués ({selectedIds.length}/{departements.length})
+          Départements attribués ({selectedIds.length}/{departements.length} parents)
         </label>
         <div className="flex items-center gap-2 text-[11px]">
           <button
             type="button"
             disabled={disabled || departements.length === 0}
             onClick={selectAll}
-            className="text-primary hover:underline font-medium disabled:opacity-50"
+            className="text-primary hover:underline font-medium disabled:opacity-50 cursor-pointer"
           >
             Tout sélectionner
           </button>
@@ -134,28 +186,29 @@ function DepartementSelector({
             type="button"
             disabled={disabled || selectedIds.length === 0}
             onClick={deselectAll}
-            className="text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
+            className="text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50 cursor-pointer"
           >
             Tout désélectionner
           </button>
         </div>
       </div>
 
+      {/* Barre de recherche avec support des sous-départements */}
       <div className="relative">
         <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
         <input
           type="text"
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
-          placeholder="Rechercher un département..."
+          placeholder="Rechercher un parent ou sous-département (ex: WHARF, GRAISSAGE)..."
           disabled={disabled}
-          className="w-full pl-8 pr-7 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full pl-8 pr-7 py-1.5 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
         />
         {recherche && (
           <button
             type="button"
             onClick={() => setRecherche("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
             aria-label="Effacer la recherche"
           >
             <X className="size-3" />
@@ -163,23 +216,33 @@ function DepartementSelector({
         )}
       </div>
 
-      <div className="max-h-40 overflow-y-auto rounded-md border border-border bg-background divide-y divide-border/40 p-1">
+      {/* Liste à cocher : UNIQUEMENT les départements parents */}
+      <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-background divide-y divide-border/40 p-1">
         {departements.length === 0 ? (
           <p className="p-3 text-center text-xs text-muted-foreground">
-            Chargement ou aucun département disponible.
+            Chargement ou aucun département parent disponible.
           </p>
-        ) : filtered.length === 0 ? (
+        ) : filteredParents.length === 0 ? (
           <p className="p-3 text-center text-xs text-muted-foreground">
-            Aucun département pour « {recherche} ».
+            Aucun département correspondant à « {recherche} ».
           </p>
         ) : (
-          filtered.map((d) => {
-            const isChecked = selectedSet.has(String(d.id));
+          filteredParents.map((p) => {
+            const isChecked = selectedSet.has(String(p.id));
+            const hasSubMatch =
+              Boolean(q) &&
+              !(p.name.toLowerCase().includes(q) || (p.code && p.code.toLowerCase().includes(q))) &&
+              (p.sous_departements || []).some(
+                (sd) =>
+                  sd.name.toLowerCase().includes(q) ||
+                  (sd.code && sd.code.toLowerCase().includes(q))
+              );
+
             return (
               <label
-                key={d.id}
+                key={p.id}
                 className={cn(
-                  "flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer select-none transition-colors",
+                  "flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer select-none transition-colors",
                   isChecked ? "bg-primary/10 text-foreground font-medium" : "hover:bg-muted/50 text-foreground/80"
                 )}
               >
@@ -187,13 +250,20 @@ function DepartementSelector({
                   type="checkbox"
                   checked={isChecked}
                   disabled={disabled}
-                  onChange={() => toggle(d.id)}
-                  className="size-3.5 rounded border-border text-primary focus:ring-primary"
+                  onChange={() => toggle(p.id)}
+                  className="size-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer"
                 />
-                <span className="flex-1 truncate">{d.name}</span>
-                {d.code && (
-                  <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded">
-                    {d.code}
+                <span className="flex-1 truncate">
+                  <HighlightedText text={p.name} query={recherche} />
+                  {hasSubMatch && (
+                    <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400 italic">
+                      (correspondance sous-département)
+                    </span>
+                  )}
+                </span>
+                {p.code && (
+                  <span className="font-mono text-[10px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded border border-border/50">
+                    <HighlightedText text={p.code} query={recherche} />
                   </span>
                 )}
               </label>
@@ -202,18 +272,132 @@ function DepartementSelector({
         )}
       </div>
 
+      {/* Zone « Aperçu du périmètre » : cartes empilées pour chaque parent coché */}
+      {checkedParents.length > 0 && (
+        <div className="space-y-2 pt-1 border-t border-border/60">
+          <div className="text-[11px] font-semibold text-foreground/90 flex items-center justify-between">
+            <span>Aperçu du périmètre ({checkedParents.length} parent{checkedParents.length > 1 ? "s" : ""} sélectionné{checkedParents.length > 1 ? "s" : ""}) :</span>
+            <span className="text-[10px] text-muted-foreground font-normal">Inclus automatiquement</span>
+          </div>
+
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
+            {checkedParents.map((parent) => {
+              const isCollapsed = Boolean(collapsedMap[parent.id]);
+              const sousDepts = parent.sous_departements || [];
+              const nbSubs = sousDepts.length;
+
+              return (
+                <div
+                  key={parent.id}
+                  className="rounded-md border border-border bg-background shadow-2xs overflow-hidden"
+                >
+                  {/* En-tête de la carte : nom du parent + badge + repliable */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(parent.id)}
+                    className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 bg-muted/40 hover:bg-muted/70 transition-colors text-left cursor-pointer"
+                    aria-expanded={!isCollapsed}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {isCollapsed ? (
+                        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                      <Building2 className="size-3.5 shrink-0 text-primary" />
+                      <span className="text-xs font-semibold text-foreground truncate">
+                        {parent.name}
+                      </span>
+                      {parent.code && (
+                        <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded shrink-0">
+                          {parent.code}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="shrink-0">
+                      {nbSubs > 0 ? (
+                        <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                          {nbSubs} sous-département{nbSubs > 1 ? "s" : ""}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          Aucun sous-département
+                        </span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Arbre indenté des sous-départements (lecture seule) */}
+                  {!isCollapsed && (
+                    <div className="p-2 bg-surface/50 border-t border-border/50">
+                      {nbSubs === 0 ? (
+                        <p className="text-[11px] text-muted-foreground italic px-2 py-1">
+                          Aucun sous-département
+                        </p>
+                      ) : (
+                        <div className="max-h-40 overflow-y-auto pr-1 space-y-1">
+                          {sousDepts.map((sd) => {
+                            const isMatched =
+                              Boolean(q) &&
+                              (sd.name.toLowerCase().includes(q) ||
+                                (sd.code && sd.code.toLowerCase().includes(q)));
+
+                            // Indentation selon le niveau hiérarchique
+                            const paddingLeft =
+                              sd.niveau === 1
+                                ? "pl-1"
+                                : sd.niveau === 2
+                                ? "pl-4"
+                                : "pl-7";
+
+                            return (
+                              <div
+                                key={sd.id}
+                                className={cn(
+                                  "flex items-center gap-1.5 py-0.5 text-[11px] rounded transition-colors",
+                                  paddingLeft,
+                                  isMatched
+                                    ? "bg-amber-100 dark:bg-amber-950/60 font-semibold px-1 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+                                    : "text-foreground/80 hover:text-foreground"
+                                )}
+                              >
+                                <span className="text-muted-foreground font-mono select-none">↳</span>
+                                {sd.code && (
+                                  <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded border border-border/40 shrink-0">
+                                    <HighlightedText text={sd.code} query={recherche} />
+                                  </span>
+                                )}
+                                <span className="truncate">
+                                  <HighlightedText text={sd.name} query={recherche} />
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Message d'état (alerte si 0 sélectionné, confirmation si > 0) */}
       {selectedIds.length === 0 ? (
         <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-700 dark:text-amber-300">
           <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
           <div>
             <span className="font-semibold">Aucun département affecté :</span>{" "}
-            cet administrateur ne verra aucune donnée tant qu&apos;un département ne lui sera pas attribué.
+            cet administrateur ne verra aucune donnée tant qu&apos;un département parent ne lui sera pas attribué.
           </div>
         </div>
       ) : (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1">
           <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
-          Les sous-départements rattachés seront automatiquement inclus dans le périmètre.
+          Tous les sous-départements de l&apos;arbre sont calculés et inclus automatiquement côté serveur.
         </p>
       )}
     </div>
