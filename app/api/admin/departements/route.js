@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { targetPool } from '@/lib/db';
 import { exigerRole } from '@/lib/auth';
+import { getArbreDepartements } from '@/lib/departements';
 
 /**
  * Route GET /api/admin/departements
- * Liste de tous les départements (auth_department) avec leur parent, pour le sélecteur
- * d'affectation de périmètre d'un admin. Réservée strictement au super_admin.
+ * Retourne la hiérarchie des départements pour le sélecteur d'attribution :
+ * les départements parents de niveau 1 avec leurs sous-départements récursifs.
+ * Réservée strictement au super_admin.
  */
 export async function GET() {
   const auth = await exigerRole('super_admin');
@@ -14,16 +15,21 @@ export async function GET() {
   }
 
   try {
-    const { rows } = await targetPool.query(
-      `SELECT id, code, name, parent_id
-       FROM auth_department
-       ORDER BY name ASC;`
-    );
-    return NextResponse.json({ departements: rows });
+    const parents = await getArbreDepartements();
+    // Conserve également le format à plat "departements" pour compatibilité tout en fournissant l'arbre
+    return NextResponse.json({
+      parents,
+      departements: parents.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        nb_sous_departements: p.nb_sous_departements,
+      })),
+    });
   } catch (error) {
     console.error('[API Admin Départements] Erreur :', error?.message);
     return NextResponse.json(
-      { error: 'Erreur lors du chargement des départements.', departements: [] },
+      { error: 'Erreur lors du chargement des départements.', parents: [], departements: [] },
       { status: 500 }
     );
   }
