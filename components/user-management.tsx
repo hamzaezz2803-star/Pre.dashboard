@@ -406,7 +406,7 @@ function DepartementSelector({
 
 export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
   const [users, setUsers] = useState<User[]>([]);
-  const [allDepartements, setAllDepartements] = useState<DepartmentOption[]>([]);
+  const [allDepartements, setAllDepartements] = useState<ParentDepartmentTree[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -441,7 +441,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
     try {
       const [resUsers, resDepts] = await Promise.all([
         fetch("/api/admin/users"),
-        fetch("/api/admin/departements"),
+        fetch("/api/departements/arbre"),
       ]);
 
       if (!resUsers.ok) {
@@ -453,7 +453,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
 
       if (resDepts.ok) {
         const dataDepts = await resDepts.json();
-        setAllDepartements(dataDepts.departements || []);
+        setAllDepartements(dataDepts.parents || []);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erreur de chargement.");
@@ -468,7 +468,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
       try {
         const [resUsers, resDepts] = await Promise.all([
           fetch("/api/admin/users"),
-          fetch("/api/admin/departements"),
+          fetch("/api/departements/arbre"),
         ]);
 
         if (!resUsers.ok) {
@@ -480,7 +480,7 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
 
         if (resDepts.ok) {
           const dataDepts = await resDepts.json();
-          if (!cancelled) setAllDepartements(dataDepts.departements || []);
+          if (!cancelled) setAllDepartements(dataDepts.parents || []);
         }
       } catch (err: unknown) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Erreur de chargement.");
