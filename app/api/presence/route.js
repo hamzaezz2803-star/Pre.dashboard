@@ -5,6 +5,7 @@ import {
   departementNomAutorise,
   exigerRoleAvecPerimetre,
 } from '@/lib/perimetre';
+import { resoudreNomsDescendants } from '@/lib/departements';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -61,8 +62,10 @@ export async function GET(request) {
       if (!(await departementNomAutorise(perimetre, departement))) {
         return NextResponse.json({ error: 'Accès refusé à ce département.' }, { status: 403 });
       }
-      params.push(departement);
-      conditions.push(`dept_name = $${params.length}`);
+      const nomsInclus = await resoudreNomsDescendants(departement);
+      const liste = nomsInclus.length > 0 ? nomsInclus : [departement];
+      params.push(liste);
+      conditions.push(`dept_name = ANY($${params.length}::text[])`);
     }
     // Cloisonnement obligatoire côté serveur : uniquement le personnel des départements autorisés
     const condPerimetre = conditionPerimetrePersonnel(perimetre, params, 'emp_code');

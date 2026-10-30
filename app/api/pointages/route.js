@@ -6,6 +6,7 @@ import {
   departementNomAutorise,
   exigerRoleAvecPerimetre,
 } from '@/lib/perimetre';
+import { resoudreNomsDescendants } from '@/lib/departements';
 import { getEventTimesByEmployee } from '@/lib/queries';
 
 /**
