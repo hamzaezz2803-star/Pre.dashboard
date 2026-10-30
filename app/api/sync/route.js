@@ -16,33 +16,6 @@ export async function POST(request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  // 2. Vérification que l'appel provient de localhost ou du réseau local (LAN)
-  const host = request.headers.get('host') || '';
-  const forwardedFor = request.headers.get('x-forwarded-for') || '';
-  const hostname = request.nextUrl.hostname;
-  const cleanHost = host.split(':')[0].toLowerCase();
-
-  const isPrivateIp = (ip) =>
-    ip === 'localhost' ||
-    ip === '127.0.0.1' ||
-    ip === '::1' ||
-    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(ip) ||
-    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip) ||
-    /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(ip);
-
-  const isLocalOrLan =
-    isPrivateIp(hostname) ||
-    isPrivateIp(cleanHost) ||
-    forwardedFor.includes('127.0.0.1') ||
-    forwardedFor.includes('::1');
-
-  if (!isLocalOrLan) {
-    return NextResponse.json(
-      { error: 'Accès refusé : la synchronisation manuelle est réservée au réseau local.' },
-      { status: 403 }
-    );
-  }
-
   // 2. Si une synchronisation est déjà en cours, renvoyer syncState avec le statut 202
   if (isSyncInProgress()) {
     return NextResponse.json(

@@ -83,8 +83,9 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
         throw new Error(data.error || "Échec de synchronisation");
       }
       setRetryKey((k) => k + 1);
-    } catch {
-      setRefreshError("Échec de l'actualisation des données. Veuillez réessayer.");
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : "Erreur inattendue.";
+      setRefreshError(`Échec de l'actualisation : ${detail}`);
     } finally {
       setIsRefreshing(false);
     }
