@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { exigerRoleAvecPerimetre, listerDepartementsAutorises } from '@/lib/perimetre';
+import { exigerRoleAvecPerimetre } from '@/lib/perimetre';
+import { listerDepartementsFiltreArbre } from '@/lib/departements';
 
 /**
  * GET /api/affectation-horaire/departements
- * Retourne la liste des départements depuis la table auth_department.
+ * Retourne la liste des départements depuis la table auth_department ordonnée en arbre.
  * Pour un admin : uniquement les départements de son périmètre (sous-départements inclus).
  */
 export async function GET() {
@@ -13,7 +14,7 @@ export async function GET() {
   }
 
   try {
-    const departements = await listerDepartementsAutorises(auth.perimetre);
+    const departements = await listerDepartementsFiltreArbre(auth.perimetre);
     return NextResponse.json({ departements });
   } catch (err) {
     console.error('[API Affectation Départements] Erreur :', err?.message);

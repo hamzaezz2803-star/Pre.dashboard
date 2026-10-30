@@ -6,6 +6,7 @@ import {
   estPerimetreRestreint,
   exigerRoleAvecPerimetre,
 } from '@/lib/perimetre';
+import { resoudreIdsDescendants } from '@/lib/departements';
 
 /**
  * GET /api/affectation-horaire/employes?deptId=...&q=...
@@ -37,8 +38,10 @@ export async function GET(request) {
           { status: 403 }
         );
       }
-      params.push(deptId);
-      conditions.push(`p.auth_dept_id = $${params.length}`);
+      const idsInclus = await resoudreIdsDescendants(deptId);
+      const liste = idsInclus.length > 0 ? idsInclus : [deptId];
+      params.push(liste);
+      conditions.push(`p.auth_dept_id = ANY($${params.length}::text[])`);
     }
 
     // Cloisonnement obligatoire côté serveur

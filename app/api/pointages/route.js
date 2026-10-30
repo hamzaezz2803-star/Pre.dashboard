@@ -64,8 +64,10 @@ export async function GET(request) {
       if (!(await departementNomAutorise(auth.perimetre, departement.trim()))) {
         return NextResponse.json({ error: 'Accès refusé à ce département.' }, { status: 403 });
       }
-      params.push(departement.trim());
-      conditions.push(`departement = $${params.length}`);
+      const nomsInclus = await resoudreNomsDescendants(departement.trim());
+      const liste = nomsInclus.length > 0 ? nomsInclus : [departement.trim()];
+      params.push(liste);
+      conditions.push(`departement = ANY($${params.length}::text[])`);
     }
 
     // Cloisonnement obligatoire côté serveur : uniquement le personnel des départements autorisés
