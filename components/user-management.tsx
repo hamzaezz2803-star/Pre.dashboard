@@ -535,11 +535,31 @@ export function UserManagement({ currentUser }: { currentUser?: CurrentUser }) {
   // Modification
   function openEditModal(user: User) {
     setEditModalUser(user);
+
+    // Résolution : si l'admin avait précédemment un sous-département affecté, on remonte à son parent de niveau 1
+    const subToParentMap = new Map<string, string>();
+    for (const p of allDepartements) {
+      subToParentMap.set(String(p.id), String(p.id));
+      if (p.sous_departements) {
+        for (const sd of p.sous_departements) {
+          subToParentMap.set(String(sd.id), String(p.id));
+        }
+      }
+    }
+
+    const parentIds = Array.from(
+      new Set(
+        (user.departements || [])
+          .map((d) => subToParentMap.get(String(d.id)) || String(d.id))
+          .filter((id) => allDepartements.some((p) => String(p.id) === id))
+      )
+    );
+
     setEditForm({
       full_name: user.full_name || "",
       role: user.role,
       active: user.active,
-      departement_ids: (user.departements || []).map((d) => String(d.id)),
+      departement_ids: parentIds,
     });
     setModalError(null);
   }
