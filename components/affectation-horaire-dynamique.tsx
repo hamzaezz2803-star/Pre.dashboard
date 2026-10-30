@@ -606,9 +606,9 @@ export function AffectationHoraireDynamique() {
               className="w-full px-2.5 py-1.5 rounded-md border border-border bg-surface text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
             >
               <option value="all">Tous les départements ({departements.length})</option>
-              {departements.map((d) => (
+              {departements.map((d: any) => (
                 <option key={d.id} value={d.id}>
-                  {d.name} {d.code ? `(${d.code})` : ""}
+                  {d.label || `${d.name}${d.code ? ` (${d.code})` : ""}`}
                 </option>
               ))}
             </select>
