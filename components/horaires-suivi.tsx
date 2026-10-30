@@ -338,11 +338,16 @@ export function HorairesSuivi() {
               className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
             >
               <option value="all">Tous les départements</option>
-              {departmentsList.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
+              {departmentsList.map((d: any) => {
+                const name = typeof d === "string" ? d : d.name;
+                const label = typeof d === "string" ? d : (d.label || d.name);
+                const key = typeof d === "string" ? d : (d.id || d.name);
+                return (
+                  <option key={key} value={name}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           </div>
 

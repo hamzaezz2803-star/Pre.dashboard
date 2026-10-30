@@ -65,7 +65,7 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
     : "all";
   const rangeError = from > to;
 
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [state, setState] = useState<DataState>({ status: "loading" });
   const [activeView, setActiveView] = useState<"table" | "stats">("table");
   const [retryKey, setRetryKey] = useState(0);
@@ -218,11 +218,16 @@ export function Dashboard({ userRole = "admin" }: { userRole?: string }) {
               onChange={(e) => updateParams({ dept: e.target.value === "all" ? null : e.target.value })}
             >
               <option value="all">Tous</option>
-              {departments.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
+              {departments.map((d: any) => {
+                const name = typeof d === "string" ? d : d.name;
+                const label = typeof d === "string" ? d : (d.label || d.name);
+                const key = typeof d === "string" ? d : (d.id || d.name);
+                return (
+                  <option key={key} value={name}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
