@@ -1,29 +1,28 @@
 import { NextResponse } from 'next/server';
-import { getBiotimePool } from '@/lib/biotime-db';
-import { estPerimetreRestreint, exigerRoleAvecPerimetre, listerDepartementsAutorises } from '@/lib/perimetre';
+import { exigerRoleAvecPerimetre } from '@/lib/perimetre';
+import { listerDepartementsFiltreArbre } from '@/lib/departements';
 
 /**
- * Route GET /api/presence/departements : liste des départements proposés dans les filtres.
- * - super_admin : tous les dept_name de v_presence_jour.
- * - admin       : uniquement les départements de son périmètre (sous-départements inclus).
+ * Route GET /api/presence/departements
+ * Retourne la liste des départements proposés dans les filtres,
+ * ordonnée selon la hiérarchie en arbre (parent > sous-départements).
+ * - super_admin : tous les départements (hors racine).
+ * - admin       : uniquement les départements de son périmètre.
+ *
+ * Retourne des objets { id, name, code, niveau, label } où `label` est indenté
+ * avec des flèches '↳' pour un affichage hiérarchique direct dans les <select>.
  */
 export async function GET() {
   const auth = await exigerRoleAvecPerimetre('admin', 'super_admin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
   try {
-    if (estPerimetreRestreint(auth.perimetre)) {
-      const autorises = await listerDepartementsAutorises(auth.perimetre);
-      const noms = [...new Set(autorises.map((d) => d.name).filter((n) => n && n !== ''))];
-      return NextResponse.json(noms);
-    }
-    const { rows } = await getBiotimePool().query(
-      "SELECT DISTINCT dept_name FROM v_presence_jour WHERE dept_name IS NOT NULL AND dept_name <> '' ORDER BY dept_name",
-    );
-    return NextResponse.json(rows.map((r) => r.dept_name));
+    const arbreFiltre = await listerDepartementsFiltreArbre(auth.perimetre);
+    return NextResponse.json(arbreFiltre);
   } catch (err) {
-    console.error('[API Presence] Erreur lecture départements :', err?.message);
+    console.error('[API Presence Départements] Erreur :', err?.message);
     return NextResponse.json([]);
   }
 }
