@@ -91,7 +91,7 @@ function formatDate(dateStr: string): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Sélecteur hiérarchique de départements parents avec aperçu en arbre des sous-départements */
+/** Sélecteur hiérarchique de départements parents avec carte latérale alignée sur la ligne */
 function DepartementSelector({
   departements,
   selectedIds,
@@ -104,37 +104,141 @@ function DepartementSelector({
   disabled?: boolean;
 }) {
   const [recherche, setRecherche] = useState("");
-  // État de repli/dépliement des cartes d'aperçu par ID de parent (dépliées par défaut)
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
+  const [activeParentId, setActiveParentId] = useState<string | null>(null);
+  const [cardCoords, setCardCoords] = useState<{ top: number; left: number } | null>(null);
+
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const q = recherche.trim().toLowerCase();
 
-  // Filtrage bidirectionnel : un parent est affiché si son nom/code matche OU si un de ses sous-départements matche
-  const filteredParents = departements.filter((p) => {
-    if (!q) return true;
-    const parentMatches =
-      p.name.toLowerCase().includes(q) ||
-      (p.code && p.code.toLowerCase().includes(q));
-    if (parentMatches) return true;
+  // Filtrage : un parent est affiché si son nom/code matche OU si un de ses sous-départements matche
+  const filteredParents = useMemo(() => {
+    return departements.filter((p) => {
+      if (!q) return true;
+      const parentMatches =
+        p.name.toLowerCase().includes(q) ||
+        (p.code && p.code.toLowerCase().includes(q));
+      if (parentMatches) return true;
 
-    const subMatches = (p.sous_departements || []).some(
-      (sd) =>
-        sd.name.toLowerCase().includes(q) ||
-        (sd.code && sd.code.toLowerCase().includes(q))
-    );
-    return subMatches;
-  });
+      const subMatches = (p.sous_departements || []).some(
+        (sd) =>
+          sd.name.toLowerCase().includes(q) ||
+          (sd.code && sd.code.toLowerCase().includes(q))
+      );
+      return subMatches;
+    });
+  }, [departements, q]);
 
   const selectedSet = new Set(selectedIds.map(String));
 
-  function toggle(id: string) {
+  // Calcul du positionnement de la carte latérale alignée sur la ligne du parent
+  const updateCardPosition = useCallback((parentId: string) => {
+    const el = rowRefs.current[parentId];
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const cardWidth = 320;
+    const cardHeight = 240;
+
+    let left = rect.right + 12;
+    // Si la carte dépasse à droite de l'écran, tenter à gauche de la modale ou ajuster
+    if (left + cardWidth > window.innerWidth - 12) {
+      if (rect.left - cardWidth - 12 > 12) {
+        left = rect.left - cardWidth - 12;
+      } else {
+        left = Math.max(12, window.innerWidth - cardWidth - 12);
+      }
+    }
+
+    let top = rect.top;
+    if (top + cardHeight > window.innerHeight - 12) {
+      top = Math.max(12, window.innerHeight - cardHeight - 12);
+    }
+
+    setCardCoords({ top, left });
+  }, []);
+
+  // Déplacement / synchronisation de position de la carte active
+  useEffect(() => {
+    if (activeParentId) {
+      updateCardPosition(activeParentId);
+    } else {
+      setCardCoords(null);
+    }
+  }, [activeParentId, updateCardPosition]);
+
+  // Écoute des redimensionnements et scrolls
+  useEffect(() => {
+    if (!activeParentId) return;
+    const handleReposition = () => updateCardPosition(activeParentId);
+    window.addEventListener("resize", handleReposition);
+    window.addEventListener("scroll", handleReposition, true);
+    return () => {
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleReposition, true);
+    };
+  }, [activeParentId, updateCardPosition]);
+
+  // Fermeture par touche Échap
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveParentId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Fermeture par clic en dehors
+  useEffect(() => {
+    if (!activeParentId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (cardRef.current && cardRef.current.contains(target)) return;
+      const isInsideAnyRow = Object.values(rowRefs.current).some(
+        (el) => el && el.contains(target)
+      );
+      if (isInsideAnyRow) return;
+      setActiveParentId(null);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeParentId]);
+
+  // Si l'utilisateur tape un mot clé correspondant à un sous-département (ex: "sousprod"),
+  // faire apparaître le parent et ouvrir automatiquement sa carte avec mise en surbrillance !
+  useEffect(() => {
+    if (!q) return;
+    const matchSubParent = departements.find((p) =>
+      (p.sous_departements || []).some(
+        (sd) =>
+          sd.name.toLowerCase().includes(q) ||
+          (sd.code && sd.code.toLowerCase().includes(q))
+      )
+    );
+    if (matchSubParent) {
+      setActiveParentId(matchSubParent.id);
+    }
+  }, [q, departements]);
+
+  function toggleCheck(id: string, e?: React.MouseEvent) {
     if (disabled) return;
+    e?.stopPropagation();
     const strId = String(id);
     if (selectedSet.has(strId)) {
       onChange(selectedIds.filter((x) => String(x) !== strId));
     } else {
       onChange([...selectedIds, strId]);
     }
+    setActiveParentId(strId);
+  }
+
+  function handleRowClick(id: string) {
+    if (disabled) return;
+    // Cliquer sur la ligne ouvre ou ferme la carte latérale
+    setActiveParentId((prev) => (prev === id ? null : id));
   }
 
   function selectAll() {
@@ -154,18 +258,10 @@ function DepartementSelector({
     }
   }
 
-  function toggleCollapse(parentId: string) {
-    setCollapsedMap((prev) => ({
-      ...prev,
-      [parentId]: !prev[parentId],
-    }));
-  }
-
-  // Parents actuellement sélectionnés avec leurs données d'arbre complètes
-  const checkedParents = departements.filter((p) => selectedSet.has(String(p.id)));
+  const activeParent = departements.find((p) => String(p.id) === String(activeParentId)) || null;
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3.5">
+    <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3.5 relative">
       {/* En-tête : compteur des parents et actions rapides */}
       <div className="flex flex-wrap items-center justify-between gap-1.5">
         <label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
@@ -200,7 +296,7 @@ function DepartementSelector({
           type="text"
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
-          placeholder="Rechercher un parent ou sous-département (ex: WHARF, GRAISSAGE)..."
+          placeholder="Rechercher un parent ou sous-département (ex: WHARF, sousprod)..."
           disabled={disabled}
           className="w-full pl-8 pr-7 py-1.5 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
         />
@@ -217,7 +313,7 @@ function DepartementSelector({
       </div>
 
       {/* Liste à cocher : UNIQUEMENT les départements parents */}
-      <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-background divide-y divide-border/40 p-1">
+      <div className="max-h-52 overflow-y-auto rounded-md border border-border bg-background divide-y divide-border/40 p-1">
         {departements.length === 0 ? (
           <p className="p-3 text-center text-xs text-muted-foreground">
             Chargement ou aucun département parent disponible.
@@ -229,6 +325,7 @@ function DepartementSelector({
         ) : (
           filteredParents.map((p) => {
             const isChecked = selectedSet.has(String(p.id));
+            const isActive = activeParentId === String(p.id);
             const hasSubMatch =
               Boolean(q) &&
               !(p.name.toLowerCase().includes(q) || (p.code && p.code.toLowerCase().includes(q))) &&
@@ -239,148 +336,144 @@ function DepartementSelector({
               );
 
             return (
-              <label
+              <div
                 key={p.id}
+                ref={(el) => {
+                  rowRefs.current[p.id] = el;
+                }}
+                onClick={() => handleRowClick(p.id)}
                 className={cn(
                   "flex items-center gap-2 px-2.5 py-1.5 rounded text-xs cursor-pointer select-none transition-colors",
-                  isChecked ? "bg-primary/10 text-foreground font-medium" : "hover:bg-muted/50 text-foreground/80"
+                  isActive
+                    ? "bg-primary/15 ring-1 ring-primary/40 font-medium text-foreground"
+                    : isChecked
+                    ? "bg-primary/10 text-foreground font-medium"
+                    : "hover:bg-muted/50 text-foreground/80"
                 )}
               >
                 <input
                   type="checkbox"
                   checked={isChecked}
                   disabled={disabled}
-                  onChange={() => toggle(p.id)}
-                  className="size-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleCheck(p.id)}
+                  className="size-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer shrink-0"
                 />
+
                 <span className="flex-1 truncate">
                   <HighlightedText text={p.name} query={recherche} />
                   {hasSubMatch && (
                     <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400 italic">
-                      (correspondance sous-département)
+                      (correspondance sous-dép.)
                     </span>
                   )}
                 </span>
+
                 {p.code && (
-                  <span className="font-mono text-[10px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded border border-border/50">
+                  <span className="font-mono text-[10px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded border border-border/50 shrink-0">
                     <HighlightedText text={p.code} query={recherche} />
                   </span>
                 )}
-              </label>
+
+                {/* Badge N sous-dép. */}
+                {p.nb_sous_departements > 0 && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
+                    {p.nb_sous_departements} sous-dép.
+                  </span>
+                )}
+              </div>
             );
           })
         )}
       </div>
 
-      {/* Zone « Aperçu du périmètre » : cartes empilées pour chaque parent coché */}
-      {checkedParents.length > 0 && (
-        <div className="space-y-2 pt-1 border-t border-border/60">
-          <div className="text-[11px] font-semibold text-foreground/90 flex items-center justify-between">
-            <span>Aperçu du périmètre ({checkedParents.length} parent{checkedParents.length > 1 ? "s" : ""} sélectionné{checkedParents.length > 1 ? "s" : ""}) :</span>
-            <span className="text-[10px] text-muted-foreground font-normal">Inclus automatiquement</span>
+      {/* Carte latérale volante (flottante) alignée sur la ligne du parent sélectionné */}
+      {activeParent && cardCoords && (
+        <div
+          ref={cardRef}
+          style={{
+            position: "fixed",
+            top: `${cardCoords.top}px`,
+            left: `${cardCoords.left}px`,
+            maxHeight: "calc(100vh - 40px)",
+          }}
+          className="z-[70] w-72 sm:w-80 rounded-lg border border-border bg-surface p-3.5 shadow-2xl space-y-2.5 animate-in fade-in slide-in-from-left-2 backdrop-blur-xs"
+        >
+          {/* En-tête de la carte */}
+          <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Building2 className="size-4 text-primary shrink-0" />
+              <span className="font-semibold text-xs text-foreground truncate">
+                {activeParent.name}
+              </span>
+              {activeParent.code && (
+                <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded shrink-0">
+                  {activeParent.code}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                {activeParent.nb_sous_departements} sous-dép.
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveParentId(null)}
+                className="text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors cursor-pointer"
+                title="Fermer la carte (ou appuyer sur Échap)"
+                aria-label="Fermer la carte"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
-            {checkedParents.map((parent) => {
-              const isCollapsed = Boolean(collapsedMap[parent.id]);
-              const sousDepts = parent.sous_departements || [];
-              const nbSubs = sousDepts.length;
+          {/* Arbre indenté des sous-départements (lecture seule) */}
+          {activeParent.sous_departements && activeParent.sous_departements.length > 0 ? (
+            <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+              {activeParent.sous_departements.map((sd) => {
+                const isMatched =
+                  Boolean(q) &&
+                  (sd.name.toLowerCase().includes(q) ||
+                    (sd.code && sd.code.toLowerCase().includes(q)));
 
-              return (
-                <div
-                  key={parent.id}
-                  className="rounded-md border border-border bg-background shadow-2xs overflow-hidden"
-                >
-                  {/* En-tête de la carte : nom du parent + badge + repliable */}
-                  <button
-                    type="button"
-                    onClick={() => toggleCollapse(parent.id)}
-                    className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 bg-muted/40 hover:bg-muted/70 transition-colors text-left cursor-pointer"
-                    aria-expanded={!isCollapsed}
+                const paddingLeft =
+                  sd.niveau === 1 ? "pl-1" : sd.niveau === 2 ? "pl-4" : "pl-7";
+
+                return (
+                  <div
+                    key={sd.id}
+                    className={cn(
+                      "flex items-center gap-1.5 py-1 text-xs rounded transition-colors",
+                      paddingLeft,
+                      isMatched
+                        ? "bg-amber-100 dark:bg-amber-950/60 font-semibold px-1 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+                        : "text-foreground/85 hover:text-foreground"
+                    )}
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      {isCollapsed ? (
-                        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <Building2 className="size-3.5 shrink-0 text-primary" />
-                      <span className="text-xs font-semibold text-foreground truncate">
-                        {parent.name}
+                    <span className="text-muted-foreground font-mono select-none">↳</span>
+                    {sd.code && (
+                      <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded border border-border/40 shrink-0">
+                        <HighlightedText text={sd.code} query={recherche} />
                       </span>
-                      {parent.code && (
-                        <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded shrink-0">
-                          {parent.code}
-                        </span>
-                      )}
-                    </div>
+                    )}
+                    <span className="truncate">
+                      <HighlightedText text={sd.name} query={recherche} />
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic py-3 text-center bg-muted/20 rounded">
+              Aucun sous-département
+            </p>
+          )}
 
-                    <div className="shrink-0">
-                      {nbSubs > 0 ? (
-                        <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                          {nbSubs} sous-département{nbSubs > 1 ? "s" : ""}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                          Aucun sous-département
-                        </span>
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Arbre indenté des sous-départements (lecture seule) */}
-                  {!isCollapsed && (
-                    <div className="p-2 bg-surface/50 border-t border-border/50">
-                      {nbSubs === 0 ? (
-                        <p className="text-[11px] text-muted-foreground italic px-2 py-1">
-                          Aucun sous-département
-                        </p>
-                      ) : (
-                        <div className="max-h-40 overflow-y-auto pr-1 space-y-1">
-                          {sousDepts.map((sd) => {
-                            const isMatched =
-                              Boolean(q) &&
-                              (sd.name.toLowerCase().includes(q) ||
-                                (sd.code && sd.code.toLowerCase().includes(q)));
-
-                            // Indentation selon le niveau hiérarchique
-                            const paddingLeft =
-                              sd.niveau === 1
-                                ? "pl-1"
-                                : sd.niveau === 2
-                                ? "pl-4"
-                                : "pl-7";
-
-                            return (
-                              <div
-                                key={sd.id}
-                                className={cn(
-                                  "flex items-center gap-1.5 py-0.5 text-[11px] rounded transition-colors",
-                                  paddingLeft,
-                                  isMatched
-                                    ? "bg-amber-100 dark:bg-amber-950/60 font-semibold px-1 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
-                                    : "text-foreground/80 hover:text-foreground"
-                                )}
-                              >
-                                <span className="text-muted-foreground font-mono select-none">↳</span>
-                                {sd.code && (
-                                  <span className="font-mono text-[10px] text-muted-foreground px-1 bg-muted rounded border border-border/40 shrink-0">
-                                    <HighlightedText text={sd.code} query={recherche} />
-                                  </span>
-                                )}
-                                <span className="truncate">
-                                  <HighlightedText text={sd.name} query={recherche} />
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="pt-1.5 border-t border-border/50 text-[10px] text-muted-foreground flex items-center justify-between">
+            <span>Lecture seule</span>
+            <span className="text-[9px] text-muted-foreground/80">Échap pour fermer</span>
           </div>
         </div>
       )}
