@@ -27,6 +27,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const deptId = searchParams.get('deptId')?.trim() || '';
     const q = searchParams.get('q')?.trim() || '';
+    const idsOnly = searchParams.get('idsOnly') === '1';
 
     const conditions = [];
     const params = [];
@@ -48,7 +49,7 @@ export async function GET(request) {
     const condPerimetre = conditionPerimetreDepartementId(perimetre, params, 'p.auth_dept_id');
     if (condPerimetre) conditions.push(condPerimetre);
 
-    if (q) {
+    if (q && !idsOnly) {
       params.push(`%${q}%`);
       const pIdx = `$${params.length}`;
       conditions.push(`(
@@ -62,6 +63,14 @@ export async function GET(request) {
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    if (idsOnly) {
+      const { rows: idRows } = await targetPool.query(
+        `SELECT p.id FROM pers_person p ${whereClause}`,
+        params
+      );
+      return NextResponse.json({ ids: idRows.map((r) => r.id) });
+    }
 
     const query = `
       SELECT 

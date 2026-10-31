@@ -145,6 +145,7 @@ export function AffectationHoraireDynamique() {
   const [savingSelection, setSavingSelection] = useState(false);
 
   const [pageEmployes, setPageEmployes] = useState(1);
+  const [togglingTous, setTogglingTous] = useState(false);
   const EMPLOYES_PAR_PAGE = 8;
 
   // -------------------------------------------------------------
@@ -319,6 +320,46 @@ export function AffectationHoraireDynamique() {
     });
   };
 
+  const appliquerSelectionIds = (ids: string[], activer: boolean) => {
+    setSelectedEmployeIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (activer) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleTousDepartement = async () => {
+    if (togglingTous) return;
+    setTogglingTous(true);
+    setMessageErreur(null);
+    try {
+      const params = new URLSearchParams({ idsOnly: "1" });
+      if (selectedDeptId && selectedDeptId !== "all") params.append("deptId", selectedDeptId);
+
+      const res = await fetch(`/api/affectation-horaire/employes?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Impossible de charger les employés du département.");
+      }
+
+      const ids: string[] = Array.isArray(data.ids) && data.ids.length > 0
+        ? data.ids
+        : employes.map((e) => e.id);
+
+      if (ids.length === 0) return;
+
+      const tousDejaActifs = ids.every((id) => selectedEmployeIds.has(id));
+      appliquerSelectionIds(ids, !tousDejaActifs);
+    } catch (err: unknown) {
+      setMessageErreur(err instanceof Error ? err.message : "Échec de la sélection groupée.");
+    } finally {
+      setTogglingTous(false);
+    }
+  };
+
   const handleEnregistrerEmployes = async () => {
     setSavingSelection(true);
     setMessageErreur(null);
@@ -350,6 +391,17 @@ export function AffectationHoraireDynamique() {
     const start = (pageEmployes - 1) * EMPLOYES_PAR_PAGE;
     return employes.slice(start, start + EMPLOYES_PAR_PAGE);
   }, [employes, pageEmployes]);
+
+  const nbActivesDansListe = useMemo(
+    () => employes.reduce((n, e) => n + (selectedEmployeIds.has(e.id) ? 1 : 0), 0),
+    [employes, selectedEmployeIds]
+  );
+  const tousActivesDansListe = employes.length > 0 && nbActivesDansListe === employes.length;
+  const deptSelectionne = departements.find((d) => d.id === selectedDeptId);
+  const libelleDeptSelectionne =
+    selectedDeptId === "all"
+      ? "tous les départements"
+      : deptSelectionne?.name || "ce département";
 
   // -------------------------------------------------------------
   // GESTION DES RÈGLES
@@ -565,7 +617,8 @@ export function AffectationHoraireDynamique() {
               1. Employés
             </h2>
             <span className="ml-1 text-xs text-muted-foreground">
-              (<strong>{selectedEmployeIds.size}</strong> activé{selectedEmployeIds.size > 1 ? "s" : ""} sur {employes.length})
+              (<strong>{nbActivesDansListe}</strong> activé{nbActivesDansListe > 1 ? "s" : ""} sur {employes.length}
+              {selectedEmployeIds.size !== nbActivesDansListe ? ` · ${selectedEmployeIds.size} au total` : ""})
             </span>
           </div>
 
@@ -596,14 +649,14 @@ export function AffectationHoraireDynamique() {
             />
           </div>
 
-          <div>
+          <div className="flex items-center gap-2">
             <select
               value={selectedDeptId}
               onChange={(e) => {
                 setSelectedDeptId(e.target.value);
                 setPageEmployes(1);
               }}
-              className="w-full px-2.5 py-1.5 rounded-md border border-border bg-surface text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md border border-border bg-surface text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
             >
               <option value="all">Tous les départements ({departements.length})</option>
               {departements.map((d: any) => (
@@ -612,6 +665,24 @@ export function AffectationHoraireDynamique() {
                 </option>
               ))}
             </select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleToggleTousDepartement}
+              disabled={togglingTous || loadingEmployes || employes.length === 0}
+              className="h-[30px] shrink-0 px-2.5 text-xs font-semibold"
+              title={
+                tousActivesDansListe
+                  ? `Désactiver tous les employés de ${libelleDeptSelectionne}`
+                  : `Activer tous les employés de ${libelleDeptSelectionne}`
+              }
+            >
+              {togglingTous
+                ? "..."
+                : tousActivesDansListe
+                  ? "Tout désactiver"
+                  : "Tout activer"}
+            </Button>
           </div>
         </div>
 
@@ -623,7 +694,34 @@ export function AffectationHoraireDynamique() {
                 <th className="px-3 py-2 w-28">Matricule</th>
                 <th className="px-3 py-2">Nom & Prénom</th>
                 <th className="px-3 py-2">Département</th>
-                <th className="px-3 py-2 text-center w-24">Activer</th>
+                <th className="px-3 py-2 text-center w-28">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Activer</span>
+                    <button
+                      type="button"
+                      onClick={handleToggleTousDepartement}
+                      disabled={togglingTous || loadingEmployes || employes.length === 0}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 ease-in-out focus:outline-none disabled:opacity-40",
+                        tousActivesDansListe ? "bg-primary" : "bg-muted"
+                      )}
+                      role="switch"
+                      aria-checked={tousActivesDansListe}
+                      title={
+                        tousActivesDansListe
+                          ? `Désactiver tous les employés de ${libelleDeptSelectionne}`
+                          : `Activer tous les employés de ${libelleDeptSelectionne}`
+                      }
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-xs transition duration-150 ease-in-out",
+                          tousActivesDansListe ? "translate-x-4" : "translate-x-0"
+                        )}
+                      />
+                    </button>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
