@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:status": "node --test scripts/status.test.mjs"
+    "test:status": "node --test scripts/status.test.mjs",
+    "test:formule": "node --test scripts/formule.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",
