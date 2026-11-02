@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { isSyncInProgress, runSync, syncState } from '@/lib/sync';
 import { exigerRole } from '@/lib/auth';
+import { recalculerApresSynchronisation } from '@/lib/compteurs/automatique';
 
 /**
  * Route POST /api/sync
@@ -51,6 +52,9 @@ export async function POST(request) {
         { status: 500 }
       );
     }
+
+    // Compteurs des derniers jours recalculés après l'envoi de la réponse
+    after(() => recalculerApresSynchronisation());
 
     return NextResponse.json({
       success: true,
