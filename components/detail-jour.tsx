@@ -31,6 +31,12 @@ interface Employe {
   departement?: string | null;
 }
 
+interface DepartementOption {
+  id: string;
+  name: string;
+  label?: string;
+}
+
 interface Horaire {
   id: string;
   nom: string | null;
@@ -318,19 +324,38 @@ function SelecteurEmploye({ pin, employe, onChoisir }: { pin: string; employe: E
   const [actif, setActif] = useState(-1);
   const [resultats, setResultats] = useState<Employe[]>([]);
   const [recherche, setRecherche] = useState(false);
+  const [departements, setDepartements] = useState<DepartementOption[]>([]);
+  const [deptId, setDeptId] = useState("all");
   const requete = useRef(0);
+  const avecDept = deptId !== "all";
+
+  useEffect(() => {
+    let annule = false;
+    fetch("/api/presence/departements")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!annule && Array.isArray(data)) setDepartements(data);
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, []);
 
   useEffect(() => {
     const q = texte.trim();
     const id = ++requete.current;
     const t = setTimeout(async () => {
-      if (!q) {
+      if (!q && !avecDept) {
         setResultats([]);
         return;
       }
       setRecherche(true);
       try {
-        const res = await fetch(`/api/employes?q=${encodeURIComponent(q)}`);
+        const params = new URLSearchParams();
+        if (q) params.set("q", q);
+        if (avecDept) params.set("deptId", deptId);
+        const res = await fetch(`/api/employes?${params}`);
         const data = await lireReponse(res);
         if (id === requete.current) setResultats(res.ok ? data.employes || [] : []);
       } finally {
@@ -338,7 +363,7 @@ function SelecteurEmploye({ pin, employe, onChoisir }: { pin: string; employe: E
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [texte]);
+  }, [texte, deptId, avecDept]);
 
   function choisir(e: Employe) {
     onChoisir(e.pin);
@@ -365,12 +390,33 @@ function SelecteurEmploye({ pin, employe, onChoisir }: { pin: string; employe: E
 
   const libelleCourant = employe ? `${nomComplet(employe)} (#${employe.pin})` : pin ? `Matricule ${pin}` : "";
 
+  const listeVisible = ouvert && (texte.trim() !== "" || avecDept);
+
   return (
-    <div className="relative">
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <select
+        value={deptId}
+        onChange={(e) => {
+          setDeptId(e.target.value);
+          setActif(-1);
+          setOuvert(true);
+        }}
+        aria-label="Filtrer par département"
+        title="Filtrer les employés par département"
+        className={cn(fieldClass, "sm:w-56 sm:shrink-0")}
+      >
+        <option value="all">Tous les départements</option>
+        {departements.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.label || d.name}
+          </option>
+        ))}
+      </select>
+    <div className="relative min-w-0 flex-1">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
       <input
         role="combobox"
-        aria-expanded={ouvert && texte.trim() !== ""}
+        aria-expanded={listeVisible}
         aria-controls={listeId}
         aria-autocomplete="list"
         aria-activedescendant={actif >= 0 ? `${listeId}-${actif}` : undefined}
@@ -398,7 +444,7 @@ function SelecteurEmploye({ pin, employe, onChoisir }: { pin: string; employe: E
           <X className="size-4" />
         </button>
       )}
-      {ouvert && texte.trim() !== "" && (
+      {listeVisible && (
         <ul
           id={listeId}
           role="listbox"
@@ -429,6 +475,7 @@ function SelecteurEmploye({ pin, employe, onChoisir }: { pin: string; employe: E
           )}
         </ul>
       )}
+    </div>
     </div>
   );
 }
