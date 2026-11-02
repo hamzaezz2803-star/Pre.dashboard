@@ -348,14 +348,14 @@ export function CompteursGestion({ role }: { role: string }) {
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs font-medium">{c.id_compteur}</span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="min-w-[180px] px-4 py-3">
                       <div className="font-medium">{c.libelle}</div>
                       {c.description && (
                         <div className="mt-0.5 line-clamp-1 max-w-xs text-xs text-muted-foreground">{c.description}</div>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <code className="block max-w-[280px] truncate rounded bg-muted px-2 py-1 font-mono text-xs" title={c.formule}>
+                      <code className="block max-w-[240px] truncate rounded bg-muted px-2 py-1 font-mono text-xs" title={c.formule}>
                         {c.formule}
                       </code>
                     </td>
@@ -979,8 +979,8 @@ function TestFormule({
       {variables.length > 0 ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {variables.map((v) => (
-            <label key={v} className="flex items-center gap-2 text-xs">
-              <span className="w-44 shrink-0 truncate font-mono" title={v}>
+            <label key={v} className="min-w-0 space-y-1 text-xs">
+              <span className="block truncate font-mono" title={v}>
                 {v}
               </span>
               <input
