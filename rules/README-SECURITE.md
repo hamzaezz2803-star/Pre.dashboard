@@ -8,12 +8,12 @@
 
 ## 📌 Comment utiliser ce fichier
 
-- Place-le à la racine du projet (`README-SECURITE.md`), ou copie son contenu dans le fichier d'instructions de ton outil :
+- Place-le dans le dossier `rules/` du projet (`rules/README-SECURITE.md`), ou copie son contenu dans le fichier d'instructions de ton outil :
   - Claude Code → `CLAUDE.md`
   - Cursor → `.cursorrules` ou `.cursor/rules/securite.md`
   - GitHub Copilot → `.github/copilot-instructions.md`
   - Autres agents → `AGENTS.md`
-- En début de conversation avec un assistant, écris : **« Lis et applique README-SECURITE.md pendant toute la session. »**
+- En début de conversation avec un assistant, écris : **« Lis et applique rules/README-SECURITE.md pendant toute la session. »**
 
 ---
 
