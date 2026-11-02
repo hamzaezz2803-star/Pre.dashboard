@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   Calculator,
+  CalendarDays,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -104,6 +105,14 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Calculator,
         allowedRoles: ["super_admin", "admin"],
         description: "Compteurs dynamiques et formules de calcul",
+      },
+      {
+        id: "detail-jour",
+        label: "Détail jour",
+        href: "/detail-jour",
+        icon: CalendarDays,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Pointages, horaire et compteurs d'un employé",
       },
     ],
   },
