@@ -15,11 +15,13 @@ import {
   Power,
   RefreshCw,
   Search,
+  Sigma,
   X,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, fieldClass } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { FONCTIONS_FORMULE } from "@/lib/compteurs/formule";
 import { VARIABLES_COMPTEURS, type Periodicite } from "@/lib/compteurs/variables";
 import { UNITES, validerFormule } from "@/lib/compteurs/validation";
@@ -140,6 +142,7 @@ export function CompteursGestion({ role }: { role: string }) {
   const [editeur, setEditeur] = useState<{ mode: "creation" | "edition" | "lecture"; compteur?: Compteur } | null>(null);
   const [aBasculer, setABasculer] = useState<Compteur | null>(null);
   const [bascule, setBascule] = useState(false);
+  const [recalculOuvert, setRecalculOuvert] = useState(false);
 
   const charger = useCallback(async () => {
     setChargement(true);
@@ -217,17 +220,26 @@ export function CompteursGestion({ role }: { role: string }) {
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
       {/* En-tête */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Gestion des compteurs</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Compteurs calculés à partir des pointages et des horaires affectés, avec vos propres formules.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={charger} disabled={chargement} aria-label="Rafraîchir la liste">
             <RefreshCw className={cn("size-4", chargement && "animate-spin")} aria-hidden="true" />
             <span className="hidden sm:inline">Actualiser</span>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setRecalculOuvert(true)}
+            disabled={migrationAbsente || !compteurs.some((c) => c.actif)}
+            className="whitespace-nowrap"
+          >
+            <Sigma className="size-4" aria-hidden="true" />
+            <span>Recalculer</span>
           </Button>
           {peutGerer && (
             <Button onClick={() => setEditeur({ mode: "creation" })} disabled={migrationAbsente} className="whitespace-nowrap">
@@ -444,6 +456,8 @@ export function CompteursGestion({ role }: { role: string }) {
         />
       )}
 
+      {recalculOuvert && <Recalcul onFermer={() => setRecalculOuvert(false)} />}
+
       {aBasculer && (
         <Dialogue onFermer={() => !bascule && setABasculer(null)} titre={aBasculer.actif ? "Désactiver le compteur" : "Activer le compteur"} largeur="max-w-md">
           <p className="text-sm text-muted-foreground">
@@ -475,6 +489,116 @@ export function CompteursGestion({ role }: { role: string }) {
         </Dialogue>
       )}
     </main>
+  );
+}
+
+// ─── Recalcul ────────────────────────────────────────────────────────────────
+
+interface ResumeRecalcul {
+  date: string;
+  employes: number;
+  compteurs: number;
+  ok: number;
+  erreurs: number;
+  echecs: string[];
+}
+
+function dateLocale(decalageJours = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + decalageJours);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function Recalcul({ onFermer }: { onFermer: () => void }) {
+  const aujourdhui = dateLocale();
+  const [date, setDate] = useState(dateLocale(-1));
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [resume, setResume] = useState<ResumeRecalcul | null>(null);
+
+  async function lancer() {
+    setEnvoi(true);
+    setErreur(null);
+    setResume(null);
+    try {
+      const res = await fetch("/api/compteurs/recalculer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date }),
+      });
+      const data = await lireReponse(res);
+      if (!res.ok) {
+        setErreur(data.error || "Recalcul impossible.");
+        return;
+      }
+      setResume(data);
+    } catch {
+      setErreur("Erreur réseau : recalcul impossible.");
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
+  return (
+    <Dialogue
+      titre="Recalculer les compteurs"
+      icone={<Sigma className="size-5 text-primary" aria-hidden="true" />}
+      largeur="max-w-md"
+      onFermer={() => !envoi && onFermer()}
+    >
+      <p className="text-sm text-muted-foreground">
+        Calcule tous les compteurs actifs pour les employés de votre périmètre : la journée, la semaine (lundi →
+        dimanche) et le mois qui contiennent la date choisie. Les valeurs déjà enregistrées pour ces périodes sont
+        remplacées.
+      </p>
+
+      <div className="space-y-1">
+        <label htmlFor="recalcul-date" className="text-xs font-medium">
+          Date
+        </label>
+        <DatePicker id="recalcul-date" value={date} max={aujourdhui} onChange={(v) => setDate(v)} disabled={envoi} />
+      </div>
+
+      {erreur && (
+        <div role="alert" className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger/10 p-2.5 text-sm text-danger">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{erreur}</span>
+        </div>
+      )}
+
+      {resume && (
+        <div role="status" className="space-y-1 rounded-md border border-border bg-muted/30 p-3 text-sm">
+          <p className="flex items-center gap-1.5 font-medium">
+            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            Recalcul terminé
+          </p>
+          <p className="text-muted-foreground">
+            {resume.employes} employé(s), {resume.compteurs} compteur(s) actif(s) :{" "}
+            <strong className="text-foreground">{resume.ok}</strong> valeur(s) calculée(s)
+            {resume.erreurs > 0 && (
+              <>
+                , <strong className="text-warning">{resume.erreurs}</strong> non calculable(s) (données manquantes ou
+                erreur de formule)
+              </>
+            )}
+            .
+          </p>
+          {resume.echecs.length > 0 && (
+            <p className="text-danger">Échec pour les matricules : {resume.echecs.join(", ")}.</p>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button variant="outline" onClick={onFermer} disabled={envoi}>
+          Fermer
+        </Button>
+        <Button onClick={lancer} disabled={envoi || !date}>
+          {envoi && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          Lancer le recalcul
+        </Button>
+      </div>
+    </Dialogue>
   );
 }
 
