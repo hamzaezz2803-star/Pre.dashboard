@@ -24,6 +24,12 @@ import {
 import { getHoraireConfig } from "@/lib/horaire-style";
 import { usePerimetre, perimetreExport } from "@/components/perimetre-context";
 
+interface DepartementOption {
+  id?: string;
+  name: string;
+  label?: string;
+}
+
 export function RapportPresences() {
   // Dates par défaut : 30 derniers jours
   const aujourdhui = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -36,6 +42,10 @@ export function RapportPresences() {
   const [dateDebut, setDateDebut] = useState(debutParDefaut);
   const [dateFin, setDateFin] = useState(aujourdhui);
   const [rechercheTexte, setRechercheTexte] = useState("");
+  const [departement, setDepartement] = useState("all");
+  const [departements, setDepartements] = useState<DepartementOption[]>([]);
+  // Département correspondant aux lignes chargées (libellé et nom des fichiers exportés)
+  const [departementCharge, setDepartementCharge] = useState("all");
   const perimetreInfo = usePerimetre();
   const perimetre = perimetreExport(perimetreInfo);
 
@@ -55,22 +65,36 @@ export function RapportPresences() {
       if (dateDebut) params.append("debut", dateDebut);
       if (dateFin) params.append("fin", dateFin);
       if (rechercheTexte.trim()) params.append("q", rechercheTexte.trim());
+      if (departement !== "all") params.append("departement", departement);
 
       const res = await fetch(`/api/rapport-presences?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setRows(data.rows || []);
+        setDepartementCharge(departement);
       }
     } catch (e) {
       console.error("Erreur chargement rapport présences", e);
     } finally {
       setLoading(false);
     }
-  }, [dateDebut, dateFin, rechercheTexte]);
+  }, [dateDebut, dateFin, rechercheTexte, departement]);
 
   useEffect(() => {
     chargerRapport();
   }, [chargerRapport]);
+
+  // Départements proposés dans le filtre (limités au périmètre de l'utilisateur côté serveur)
+  useEffect(() => {
+    fetch("/api/presence/departements")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setDepartements(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const departementExport = departementCharge !== "all" ? departementCharge : undefined;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +106,7 @@ export function RapportPresences() {
     if (rows.length === 0) return;
     setExportingExcel(true);
     try {
-      await exportRapportPresenceExcel(rows, dateDebut, dateFin, perimetre);
+      await exportRapportPresenceExcel(rows, dateDebut, dateFin, perimetre, departementExport);
     } catch (e) {
       console.error("Erreur export Excel", e);
     } finally {
@@ -94,7 +118,7 @@ export function RapportPresences() {
     if (rows.length === 0) return;
     setExportingPdf(true);
     try {
-      await exportRapportPresencePdf(rows, dateDebut, dateFin, perimetre);
+      await exportRapportPresencePdf(rows, dateDebut, dateFin, perimetre, departementExport);
     } catch (e) {
       console.error("Erreur export PDF", e);
     } finally {
@@ -200,6 +224,29 @@ export function RapportPresences() {
                 />
               </div>
 
+              {/* Département (sous-départements inclus) */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap">
+                  Département :
+                </label>
+                <select
+                  value={departement}
+                  onChange={(e) => {
+                    setDepartement(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-9 max-w-56 px-3 py-1.5 rounded-md border border-border bg-surface text-xs sm:text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                  title="Filtrer le rapport et les exports par département"
+                >
+                  <option value="all">Tous les départements</option>
+                  {departements.map((d) => (
+                    <option key={d.id || d.name} value={d.name}>
+                      {d.label || d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Bouton Rechercher aux couleurs du projet */}
               <Button
                 type="submit"
@@ -219,7 +266,7 @@ export function RapportPresences() {
                 type="button"
                 variant="outline"
                 onClick={handleExportExcel}
-                disabled={exportingExcel || rows.length === 0}
+                disabled={exportingExcel || loading || rows.length === 0}
                 className="h-9 text-xs border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 font-semibold shadow-2xs"
                 title="Exporter les données affichées au format Excel (.xlsx)"
               >
@@ -232,7 +279,7 @@ export function RapportPresences() {
                 type="button"
                 variant="outline"
                 onClick={handleExportPdf}
-                disabled={exportingPdf || rows.length === 0}
+                disabled={exportingPdf || loading || rows.length === 0}
                 className="h-9 text-xs border-rose-600/30 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 font-semibold shadow-2xs"
                 title="Exporter le rapport au format PDF (.pdf)"
               >

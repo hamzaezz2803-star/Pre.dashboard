@@ -13,6 +13,30 @@ const GREEN_OCP = "FF0F6B4F";
 const BORDER_COLOR = "FFD5DDD9";
 const ZEBRA_COLOR = "FFF8FAF9";
 
+/** Libellé des départements de l'en-tête : le département choisi s'il y en a un, sinon ceux des lignes. */
+function libelleExport(
+  rows: RapportPresenceRow[],
+  perimetre: string[] | null | undefined,
+  departement: string | undefined,
+  max: number,
+): string {
+  if (departement) return `${departement} (sous-départements inclus)`;
+  return libelleDepartements(rows.map((r) => r.departement), perimetre, max);
+}
+
+/** Nom de fichier du rapport, suffixé par le département choisi (caractères sûrs uniquement). */
+function nomFichier(debut: string, fin: string, departement: string | undefined, ext: string): string {
+  const suffixe = departement
+    ? `_${departement
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^A-Za-z0-9-]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 60)}`
+    : "";
+  return `Rapport_Presences_${debut || "debut"}_${fin || "fin"}${suffixe}.${ext}`;
+}
+
 /**
  * Génère et télécharge le fichier Excel du Rapport des Présences aux couleurs officielles OCP.
  */
@@ -20,7 +44,8 @@ export async function exportRapportPresenceExcel(
   rows: RapportPresenceRow[],
   debut: string,
   fin: string,
-  perimetre?: string[] | null
+  perimetre?: string[] | null,
+  departement?: string
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
@@ -51,7 +76,7 @@ export async function exportRapportPresenceExcel(
   ws.getRow(2).height = 20;
   ws.mergeCells(2, 1, 2, 4);
   const periodCell = ws.getCell(2, 1);
-  periodCell.value = `Période : Du ${debut || "Début"} Au ${fin || "Fin"}  ·  Total : ${rows.length} enregistrement(s)  ·  Départements : ${libelleDepartements(rows.map((r) => r.departement), perimetre, 60)}`;
+  periodCell.value = `Période : Du ${debut || "Début"} Au ${fin || "Fin"}  ·  Total : ${rows.length} enregistrement(s)  ·  Départements : ${libelleExport(rows, perimetre, departement, 60)}`;
   periodCell.font = { name: "Arial", size: 10, italic: true, color: { argb: "FF475569" } };
   periodCell.alignment = { vertical: "middle", horizontal: "left" };
 
@@ -118,7 +143,7 @@ export async function exportRapportPresenceExcel(
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
-  const filename = `Rapport_Presences_${debut || "debut"}_${fin || "fin"}.xlsx`;
+  const filename = nomFichier(debut, fin, departement, "xlsx");
   downloadBlob(blob, filename);
 }
 
@@ -129,7 +154,8 @@ export async function exportRapportPresencePdf(
   rows: RapportPresenceRow[],
   debut: string,
   fin: string,
-  perimetre?: string[] | null
+  perimetre?: string[] | null,
+  departement?: string
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -164,7 +190,7 @@ export async function exportRapportPresencePdf(
     58
   );
   doc.text(
-    `Total : ${rows.length} pointage(s) enregistré(s)  ·  Départements : ${libelleDepartements(rows.map((r) => r.departement), perimetre, 48)}`,
+    `Total : ${rows.length} pointage(s) enregistré(s)  ·  Départements : ${libelleExport(rows, perimetre, departement, 48)}`,
     textX,
     70,
   );
@@ -225,6 +251,6 @@ export async function exportRapportPresencePdf(
     },
   });
 
-  const filename = `Rapport_Presences_${debut || "debut"}_${fin || "fin"}.pdf`;
+  const filename = nomFichier(debut, fin, departement, "pdf");
   doc.save(filename);
 }

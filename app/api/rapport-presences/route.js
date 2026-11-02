@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { targetPool } from '@/lib/db';
-import { conditionPerimetrePersonnel, exigerRoleAvecPerimetre } from '@/lib/perimetre';
+import { conditionPerimetrePersonnel, departementNomAutorise, exigerRoleAvecPerimetre } from '@/lib/perimetre';
+import { resoudreNomsDescendants } from '@/lib/departements';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DEPARTEMENT_MAX = 200;
 
 /**
- * GET /api/rapport-presences?debut=YYYY-MM-DD&fin=YYYY-MM-DD&q=...
+ * GET /api/rapport-presences?debut=YYYY-MM-DD&fin=YYYY-MM-DD&q=...&departement=...
  * Retourne les lignes du rapport des présences associées aux horaires affectés.
  */
 export async function GET(request) {
@@ -19,9 +21,13 @@ export async function GET(request) {
     const debut = searchParams.get('debut')?.trim() || '';
     const fin = searchParams.get('fin')?.trim() || '';
     const q = searchParams.get('q')?.trim() || '';
+    const departement = searchParams.get('departement')?.trim() || '';
 
     if ((debut && !ISO_DATE.test(debut)) || (fin && !ISO_DATE.test(fin))) {
       return NextResponse.json({ error: 'Format de date invalide (YYYY-MM-DD attendu).' }, { status: 400 });
+    }
+    if (departement.length > DEPARTEMENT_MAX) {
+      return NextResponse.json({ error: 'Département invalide.' }, { status: 400 });
     }
 
     const conditions = ['pointage_timestamp IS NOT NULL'];
@@ -40,6 +46,17 @@ export async function GET(request) {
     // Cloisonnement obligatoire côté serveur : uniquement le personnel des départements autorisés
     const condPerimetre = conditionPerimetrePersonnel(auth.perimetre, params, 'emp_id');
     if (condPerimetre) conditions.push(condPerimetre);
+
+    if (departement && departement !== 'all') {
+      // Un département hors périmètre est refusé : jamais de données renvoyées
+      if (!(await departementNomAutorise(auth.perimetre, departement))) {
+        return NextResponse.json({ error: 'Accès refusé à ce département.' }, { status: 403 });
+      }
+      // Le département sélectionné inclut ses sous-départements
+      const nomsInclus = await resoudreNomsDescendants(departement);
+      params.push(nomsInclus.length > 0 ? nomsInclus : [departement]);
+      conditions.push(`departement = ANY($${params.length}::text[])`);
+    }
 
     if (q) {
       params.push(`%${q}%`);
@@ -134,7 +151,7 @@ export async function GET(request) {
   } catch (err) {
     console.error('[API Rapport Présences] Erreur :', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Erreur lors de la génération du rapport.' },
+      { error: 'Erreur lors de la génération du rapport.' },
       { status: 500 }
     );
   }
