@@ -19,6 +19,7 @@ import {
   CalendarClock,
   AlertTriangle,
   FileSpreadsheet,
+  Calculator,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,19 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: FileSpreadsheet,
         allowedRoles: ["super_admin", "admin"],
         description: "Rapport officiel et export Excel / PDF",
+      },
+    ],
+  },
+  {
+    title: "Compteurs",
+    items: [
+      {
+        id: "compteurs",
+        label: "Gestion des compteurs",
+        href: "/compteurs",
+        icon: Calculator,
+        allowedRoles: ["super_admin", "admin"],
+        description: "Compteurs dynamiques et formules de calcul",
       },
     ],
   },
