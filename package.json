@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test:status": "node --test scripts/status.test.mjs",
     "test:formule": "node --test scripts/formule.test.mjs",
-    "test:compteurs": "node --test scripts/formule.test.mjs scripts/compteurs-variables.test.mjs"
+    "test:compteurs": "node --test scripts/formule.test.mjs scripts/compteurs-variables.test.mjs scripts/compteurs-validation.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",

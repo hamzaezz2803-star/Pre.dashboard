@@ -45,9 +45,14 @@ CREATE TABLE IF NOT EXISTS public.compteurs (
   CONSTRAINT compteurs_version_positive CHECK (version_formule >= 1)
 );
 
--- Recherche insensible a la casse sur le libelle (unicite des noms visibles)
+-- Unicite des libelles sans tenir compte de la casse ni des accents.
+-- La base est en LC_CTYPE 'C' : lower() ne traite pas les lettres accentuees,
+-- elles sont donc d'abord remplacees par translate() (meme expression que
+-- CLE_LIBELLE_SQL dans lib/compteurs/service.js).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_compteurs_libelle
-  ON public.compteurs (lower(libelle));
+  ON public.compteurs (lower(translate(libelle,
+    'ÀÁÂÃÄÅàáâãäåÇçÈÉÊËèéêëÌÍÎÏìíîïÑñÒÓÔÕÖòóôõöÙÚÛÜùúûüÝýÿ',
+    'AAAAAAaaaaaaCcEEEEeeeeIIIIiiiiNnOOOOOoooooUUUUuuuuYyy')));
 
 -- ---------------------------------------------------------------------
 -- 2. Versions des formules (piste d'audit : qui, quoi, quand)
