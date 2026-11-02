@@ -296,6 +296,14 @@ export function DetailJour() {
             onActualiser={actualiser}
             chargement={chargement}
           />
+
+          <HistoriqueCompteurs
+            pin={pin}
+            date={date}
+            version={version}
+            compteursDuJour={affiche.valeurs.filter((v) => v.periodicite === "JOUR")}
+            onChoisirJour={(jour) => changer({ date: jour })}
+          />
         </div>
       )}
     </main>
@@ -609,20 +617,25 @@ function CarteCompteurs({
             if (lignes.length === 0) return null;
             const { periode_debut: debut, periode_fin: fin } = lignes[0];
             return (
-              <section key={cle} aria-label={`Compteurs ${libelle.toLowerCase()}`}>
-                <div className="flex items-baseline justify-between gap-2 bg-muted/40 px-4 py-2 text-xs">
+              <section key={cle} aria-label={`Compteurs ${libelle.toLowerCase()}`} className="py-3">
+                <div className="flex items-baseline justify-between gap-2 px-4 pb-2 text-xs">
                   <span className="font-semibold uppercase tracking-wider text-muted-foreground">{libelle}</span>
-                  {cle !== "JOUR" && (
-                    <span className="text-muted-foreground">
-                      {cle === "MOIS"
+                  <span className="text-muted-foreground">
+                    {cle === "JOUR"
+                      ? formaterJour(debut, { day: "numeric", month: "short" })
+                      : cle === "MOIS"
                         ? formaterJour(debut, { month: "long", year: "numeric" })
                         : `du ${formaterJour(debut, { day: "numeric", month: "short" })} au ${formaterJour(fin, { day: "numeric", month: "short" })}`}
-                    </span>
-                  )}
+                  </span>
                 </div>
-                <ul className="divide-y divide-border/60">
+                {/* Bande horizontale : défilement au doigt, à la molette (Maj) ou au clavier */}
+                <ul
+                  tabIndex={0}
+                  aria-label={`${libelle} : ${lignes.length} compteur(s), défilement horizontal`}
+                  className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-ring"
+                >
                   {lignes.map((v) => (
-                    <LigneCompteur key={`${v.id_compteur}-${cle}`} v={v} />
+                    <CarteValeur key={`${v.id_compteur}-${cle}`} v={v} />
                   ))}
                 </ul>
               </section>
@@ -634,31 +647,205 @@ function CarteCompteurs({
   );
 }
 
-function LigneCompteur({ v }: { v: ValeurCompteur }) {
+function CarteValeur({ v }: { v: ValeurCompteur }) {
+  const ok = v.statut === "OK" && v.valeur !== null;
   return (
-    <li className="flex items-center justify-between gap-4 px-4 py-2.5">
+    <li
+      className={cn(
+        "flex w-44 shrink-0 snap-start flex-col justify-between gap-2 rounded-lg border bg-surface p-3",
+        v.statut === "ERREUR" ? "border-warning/40" : "border-border",
+        !v.actif && "opacity-70"
+      )}
+      title={v.statut === "ERREUR" ? v.message ?? undefined : undefined}
+    >
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+        <div className="truncate text-xs font-medium" title={v.libelle}>
           {v.libelle}
-          {!v.actif && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Inactif</span>}
         </div>
-        <div className="font-mono text-[11px] text-muted-foreground">{v.id_compteur}</div>
+        <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+          {v.id_compteur}
+          {!v.actif && <span className="rounded bg-muted px-1 font-sans">Inactif</span>}
+        </div>
       </div>
-      <div className="shrink-0 text-right">
-        {v.statut === "OK" && v.valeur !== null ? (
-          <span className={cn("font-mono text-base font-semibold tabular-nums", v.valeur < 0 && "text-danger")}>
-            {formaterValeur(v.valeur, v.unite)}
-          </span>
-        ) : v.statut === "ERREUR" ? (
-          <span className="inline-flex max-w-[260px] items-start gap-1 text-left text-xs text-warning" title={v.message ?? undefined}>
-            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            <span className="line-clamp-2">{v.message ?? "Non calculable"}</span>
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Non calculé</span>
-        )}
-        {v.perimee && <div className="text-[11px] text-warning">Formule modifiée depuis : à recalculer</div>}
-      </div>
+      {ok ? (
+        <span className={cn("font-mono text-xl font-semibold tabular-nums leading-none", v.valeur! < 0 && "text-danger")}>
+          {formaterValeur(v.valeur!, v.unite)}
+        </span>
+      ) : v.statut === "ERREUR" ? (
+        <span className="flex items-start gap-1 text-[11px] leading-tight text-warning">
+          <AlertTriangle className="mt-px size-3 shrink-0" aria-hidden="true" />
+          <span className="line-clamp-2">{v.message ?? "Non calculable"}</span>
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">Non calculé</span>
+      )}
+      {v.perimee && <span className="text-[10px] leading-tight text-warning">Formule modifiée : à recalculer</span>}
     </li>
+  );
+}
+
+// ─── Historique des jours précédents ─────────────────────────────────────────
+
+interface ValeurHistorique {
+  jour: string;
+  id_compteur: string;
+  libelle: string;
+  unite: string;
+  valeur: number | null;
+  statut: "OK" | "ERREUR" | "A_RECALCULER";
+  message: string | null;
+  perimee: boolean;
+}
+
+const DUREES_HISTORIQUE = [7, 14, 30];
+
+function HistoriqueCompteurs({
+  pin,
+  date,
+  version,
+  compteursDuJour,
+  onChoisirJour,
+}: {
+  pin: string;
+  date: string;
+  version: number;
+  compteursDuJour: ValeurCompteur[];
+  onChoisirJour: (jour: string) => void;
+}) {
+  const [jours, setJours] = useState(7);
+  const debut = decaler(date, -(jours - 1));
+  const cle = `${pin}|${debut}|${date}|${version}`;
+  const [reponse, setReponse] = useState<{ cle: string; valeurs: ValeurHistorique[]; erreur: string | null } | null>(null);
+  const chargement = reponse?.cle !== cle;
+
+  useEffect(() => {
+    let annule = false;
+    (async () => {
+      let suite: { valeurs: ValeurHistorique[]; erreur: string | null };
+      try {
+        const res = await fetch(`/api/employes/${encodeURIComponent(pin)}/compteurs?debut=${debut}&fin=${date}`, { cache: "no-store" });
+        const data = await lireReponse(res);
+        suite = res.ok ? { valeurs: data.valeurs || [], erreur: null } : { valeurs: [], erreur: data.error || "Historique indisponible." };
+      } catch {
+        suite = { valeurs: [], erreur: "Erreur réseau : historique indisponible." };
+      }
+      if (!annule) setReponse({ cle, ...suite });
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [pin, debut, date, cle]);
+
+  // Colonnes : compteurs journaliers actuels, puis ceux présents seulement dans l'historique
+  const valeurs = reponse?.valeurs ?? [];
+  const colonnes: { id: string; libelle: string }[] = [];
+  for (const c of [...compteursDuJour, ...valeurs]) {
+    if (!colonnes.some((x) => x.id === c.id_compteur)) colonnes.push({ id: c.id_compteur, libelle: c.libelle });
+  }
+  const parCase = new Map(valeurs.map((v) => [`${v.jour}|${v.id_compteur}`, v]));
+  const lignes = Array.from({ length: jours }, (_, i) => decaler(date, -i));
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <CalendarClock className="size-4 text-primary" aria-hidden="true" />
+          Historique des compteurs journaliers
+          {chargement && <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-hidden="true" />}
+        </h3>
+        <div className="flex rounded-md border border-border p-0.5" role="group" aria-label="Période de l'historique">
+          {DUREES_HISTORIQUE.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setJours(n)}
+              aria-pressed={jours === n}
+              className={cn(
+                "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                jours === n ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              {n} j
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {reponse?.erreur && reponse.cle === cle ? (
+        <p role="alert" className="px-4 py-6 text-sm text-danger">
+          {reponse.erreur}
+        </p>
+      ) : colonnes.length === 0 ? (
+        <p className="px-4 py-8 text-center text-sm text-muted-foreground">Aucun compteur journalier.</p>
+      ) : (
+        <div className={cn("overflow-x-auto transition-opacity", chargement && "opacity-60")}>
+          <table className="w-full min-w-max border-collapse text-left text-sm">
+            <thead className="bg-muted text-xs text-muted-foreground">
+              <tr>
+                <th scope="col" className="sticky left-0 z-10 bg-muted px-4 py-2.5 font-medium">
+                  Jour
+                </th>
+                {colonnes.map((c) => (
+                  <th key={c.id} scope="col" className="max-w-40 px-4 py-2.5 text-right font-medium" title={`${c.libelle} (${c.id})`}>
+                    <span className="block truncate">{c.libelle}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {lignes.map((jour) => {
+                const courant = jour === date;
+                return (
+                  <tr key={jour} className={cn(courant ? "bg-primary/5" : "hover:bg-muted/40")}>
+                    <th scope="row" className={cn("sticky left-0 z-10 px-4 py-2 font-normal", courant ? "bg-[color-mix(in_srgb,var(--primary)_5%,var(--surface))]" : "bg-surface")}>
+                      <button
+                        type="button"
+                        onClick={() => onChoisirJour(jour)}
+                        disabled={courant}
+                        className={cn("whitespace-nowrap text-left first-letter:uppercase", courant ? "font-semibold" : "hover:text-primary hover:underline")}
+                        title={courant ? "Jour affiché" : "Afficher ce jour"}
+                      >
+                        {formaterJour(jour, { weekday: "short", day: "numeric", month: "short" })}
+                      </button>
+                    </th>
+                    {colonnes.map((c) => (
+                      <CaseHistorique key={c.id} v={parCase.get(`${jour}|${c.id}`)} />
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+        « · » non calculé · « ! » non calculable (survolez pour le détail) · cliquez sur un jour pour l&apos;afficher.
+      </p>
+    </Card>
+  );
+}
+
+function CaseHistorique({ v }: { v?: ValeurHistorique }) {
+  if (!v) {
+    return (
+      <td className="px-4 py-2 text-right text-muted-foreground" title="Non calculé">
+        ·
+      </td>
+    );
+  }
+  if (v.statut !== "OK" || v.valeur === null) {
+    return (
+      <td className="px-4 py-2 text-right text-warning" title={v.message ?? "Non calculable"}>
+        !
+      </td>
+    );
+  }
+  return (
+    <td
+      className={cn("whitespace-nowrap px-4 py-2 text-right font-mono tabular-nums", v.valeur < 0 && "text-danger", v.perimee && "italic text-muted-foreground")}
+      title={v.perimee ? "Calculé avec une ancienne version de la formule" : undefined}
+    >
+      {formaterValeur(v.valeur, v.unite)}
+    </td>
   );
 }
